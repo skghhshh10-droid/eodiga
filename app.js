@@ -171,7 +171,7 @@ document.addEventListener("DOMContentLoaded", () => {
   renderSidebarTrips();
   window.addEventListener("orientationchange", () => setTimeout(refreshMapSize, 300));
   updateAiNotice();
-  updateDietHint();
+  setupDietInputs();
 
   // Render initial explorer state
   renderExploreTab();
@@ -628,15 +628,6 @@ function setupSettings() {
   const kakaoInput = document.getElementById("setting-kakao-key");
   const kakaoStatus = document.getElementById("kakao-status");
   const naverInput = document.getElementById("setting-naver-key");
-  document.getElementById("btn-save-diet").addEventListener("click", () => {
-    window.RoutyAI.saveSettings({
-      noSpicy: document.getElementById("setting-no-spicy").checked,
-      avoidFoods: document.getElementById("setting-avoid-foods").value.trim()
-    });
-    updateDietHint();
-    showToast("식성을 저장했어요. 다음에 만드는 일정부터 적용돼요.");
-  });
-
   document.getElementById("btn-save-kakao").addEventListener("click", () => {
     const naverKey = naverInput.value.trim();
     const kakaoKey = kakaoInput.value.trim();
@@ -738,8 +729,6 @@ function renderSettingsTab() {
   document.getElementById("setting-naver-key").value = s.naverKey || "";
   document.getElementById("setting-places-key").value = s.placesKey || "";
   document.getElementById("setting-places-sort").value = s.placesSort || "rating";
-  document.getElementById("setting-no-spicy").checked = !!s.noSpicy;
-  document.getElementById("setting-avoid-foods").value = s.avoidFoods || "";
   document.getElementById("places-limit").textContent = window.RoutyAI.PLACES_DAILY_LIMIT;
   document.getElementById("places-usage").textContent = s.placesKey ? `(오늘 ${window.RoutyAI.placesUsage().n}회 사용)` : "";
   const statusEl = document.getElementById("settings-status");
@@ -2062,14 +2051,26 @@ function dietSort(ranked) {
   return ranked.filter(i => !dietConflict(i)).concat(ranked.filter(i => dietConflict(i)));
 }
 
-function updateDietHint() {
-  const el = document.getElementById("diet-hint");
-  if (!el) return;
-  const s = window.RoutyAI.getSettings();
-  const parts = [];
-  if (s.noSpicy) parts.push("매운 음식 제외");
-  if (s.avoidFoods) parts.push(`${s.avoidFoods} 제외`);
-  el.textContent = parts.length ? `식성 반영 중: ${parts.join(" · ")} (설정에서 바꿀 수 있어요)` : "";
+// AI 플래너의 식성 입력: 바꾸는 즉시 저장해서 다음 일정에도 그대로 쓴다
+function setupDietInputs() {
+  const btn = document.getElementById("input-no-spicy");
+  const input = document.getElementById("input-avoid-foods");
+  if (!btn || !input) return;
+  const sync = () => {
+    const s = window.RoutyAI.getSettings();
+    btn.setAttribute("aria-pressed", s.noSpicy ? "true" : "false");
+    btn.classList.toggle("on", !!s.noSpicy);
+    if (document.activeElement !== input) input.value = s.avoidFoods || "";
+  };
+  btn.addEventListener("click", () => {
+    window.RoutyAI.saveSettings({ noSpicy: !window.RoutyAI.getSettings().noSpicy });
+    sync();
+  });
+  input.addEventListener("change", () => {
+    window.RoutyAI.saveSettings({ avoidFoods: input.value.trim() });
+    sync();
+  });
+  sync();
 }
 
 // --- 숙소 최저가 바로가기 ---
