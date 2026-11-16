@@ -867,3 +867,21 @@ input, select, textarea {
 [data-theme="dark"] .chip-btn.chip-top { color: #facc15; }
 [data-theme="dark"] .seg-btn.on { background: rgba(255,255,255,0.12); }
 [data-theme="dark"] .top-item { background: rgba(255,255,255,0.04); }
+
+/* ---------- 숙소 최저가 바로가기 ---------- */
+.chip-btn.chip-stay { color: #0f766e; border-color: rgba(13, 148, 136, 0.45); }
+.chip-btn.chip-stay .ic { color: #0d9488; }
+.chip-btn.chip-stay.on { background: rgba(13, 148, 136, 0.1); }
+.stay-panel { margin-top: 8px; border: 1px solid rgba(13, 148, 136, 0.35); border-radius: 14px; padding: 12px; background: rgba(13, 148, 136, 0.04); }
+.stay-head { display: flex; flex-wrap: wrap; gap: 4px 8px; align-items: baseline; font-size: var(--fs-sm); margin-bottom: 10px; }
+.stay-head span { color: var(--text-muted); }
+.stay-links { display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 8px; }
+.stay-link { display: flex; flex-direction: column; align-items: flex-start; gap: 2px; min-height: 52px; padding: 8px 12px; border-radius: 12px; border: 1px solid var(--border-color, rgba(0,0,0,0.1)); background: var(--surface, #fff); color: inherit; font: inherit; text-align: left; cursor: pointer; }
+.stay-link b { font-size: var(--fs-sm); }
+.stay-link small { font-size: var(--fs-xs); color: var(--text-muted); }
+.stay-link.main { grid-column: 1 / -1; background: #0d9488; border-color: #0d9488; color: #fff; }
+.stay-link.main small { color: rgba(255,255,255,0.85); }
+.stay-link:active { transform: scale(0.98); }
+.stay-hint { margin-top: 8px; font-size: var(--fs-xs); color: var(--text-muted); }
+[data-theme="dark"] .stay-link { background: rgba(255,255,255,0.05); }
+[data-theme="dark"] .chip-btn.chip-stay { color: #5eead4; }

@@ -1657,6 +1657,11 @@ function setupPlaceActionDelegation() {
     else if (action === "suggest") suggestAlternatives(id, btn);
     else if (action === "pick") pickAlternative(id, parseInt(btn.getAttribute("data-alt"), 10));
     else if (action === "ticket") openTicketSite(place);
+    else if (action === "stays") {
+      if (expandedStays.has(place.id)) expandedStays.delete(place.id); else expandedStays.add(place.id);
+      renderTimeline();
+    }
+    else if (action === "staysite") openStaySite(place, btn.getAttribute("data-site"));
     else if (action === "naviroute") {
       const from = state.activeTrip.places.find(p => p.id === btn.getAttribute("data-from"));
       if (from) openNaverRoute(from, place);
@@ -2002,6 +2007,82 @@ function moveConnectorHtml(move, from, to) {
 function formatMinutes(m) {
   if (m < 60) return `${m}분`;
   return `${Math.floor(m / 60)}시간${m % 60 ? ` ${m % 60}분` : ""}`;
+}
+
+
+// --- 숙소 최저가 바로가기 ---
+// 실시간 가격 API는 개인에게 열려 있지 않아, 날짜·인원을 채운 '가격 낮은 순' 검색 화면을 연다.
+const expandedStays = new Set();
+
+function ymd(d) {
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+}
+
+function stayInfo(place) {
+  const trip = state.activeTrip;
+  const people = Math.max(1, parseInt(trip.people, 10) || 2);
+  // 같은 이름 숙소가 이어지는 날들을 한 번의 숙박으로 본다 (연박이면 첫날부터)
+  const hotels = trip.places.filter(p => p.category === "hotel");
+  const same = d => hotels.some(p => p.day === d && p.name === place.name);
+  let firstDay = place.day, lastDay = place.day;
+  while (same(firstDay - 1)) firstDay--;
+  while (same(lastDay + 1)) lastDay++;
+  const totalDays = trip.days || lastDay + 1;
+  const nights = Math.max(1, Math.min(lastDay, totalDays - 1) - firstDay + 1);
+  const checkin = getTripDate(trip, firstDay);
+  const checkout = checkin ? new Date(checkin.getFullYear(), checkin.getMonth(), checkin.getDate() + nights) : null;
+  const domestic = hasCoords(place) ? isInKorea(place.lat, place.lng) : /한국|서울|부산|제주|강릉|경주|여수|전주|대구|인천|속초/.test(trip.destination || "");
+  const area = (trip.destination || "").split(/[\/,·]/)[0].trim() || place.name;
+  return { people, nights, checkin, checkout, domestic, area, rooms: people <= 2 ? 1 : Math.ceil(people / 2) };
+}
+
+function stayLinks(place, info) {
+  const enc = encodeURIComponent;
+  const dates = info.checkin ? `&checkin=${ymd(info.checkin)}&checkout=${ymd(info.checkout)}` : "";
+  const booking = q => `https://www.booking.com/searchresults.ko.html?ss=${enc(q)}${dates}&group_adults=${info.people}&no_rooms=${info.rooms}&group_children=0&order=price&selected_currency=KRW`;
+  const links = [
+    { key: "booking-area", label: `${info.area} 최저가순`, sub: "부킹닷컴 · 가격 낮은 순", url: booking(info.area), main: true },
+    { key: "booking-this", label: "이 숙소 가격", sub: "부킹닷컴", url: booking(place.name) },
+    { key: "google", label: "가격 비교", sub: "Google 호텔", url: `https://www.google.com/travel/search?q=${enc(info.area + " 호텔")}&hl=ko&gl=kr&curr=KRW` }
+  ];
+  if (info.domestic) {
+    links.push({ key: "yanolja", label: "야놀자", sub: "국내 숙소", url: "https://www.yanolja.com/", copy: true });
+    links.push({ key: "goodchoice", label: "여기어때", sub: "국내 숙소", url: "https://www.yeogi.com/", copy: true });
+  } else {
+    links.push({ key: "agoda", label: "아고다", sub: "해외 숙소", url: `https://www.agoda.com/ko-kr/search?textToSearch=${enc(info.area)}${info.checkin ? `&checkIn=${ymd(info.checkin)}&los=${info.nights}` : ""}&adults=${info.people}&rooms=${info.rooms}&sort=priceLowToHigh`, copy: true });
+  }
+  return links;
+}
+
+function stayPanelHtml(place) {
+  const info = stayInfo(place);
+  const id = esc(place.id);
+  const when = info.checkin
+    ? `${info.checkin.getMonth() + 1}/${info.checkin.getDate()} 체크인 · ${info.nights}박`
+    : `${info.nights}박 · 날짜 미정`;
+  const est = place.price ? ` · AI 예상 1박 약 ${formatWon(place.price)}` : "";
+  const links = stayLinks(place, info);
+  return `
+    <div class="stay-panel">
+      <div class="stay-head"><strong>${when} · ${info.people}명${info.rooms > 1 ? ` · 객실 ${info.rooms}개` : ""}</strong><span>${est}</span></div>
+      ${info.checkin ? "" : `<div class="stay-hint">여행 시작일을 정하면 날짜까지 채워서 열려요.</div>`}
+      <div class="stay-links">
+        ${links.map(l => `<button class="stay-link ${l.main ? "main" : ""}" data-action="staysite" data-site="${l.key}" data-id="${id}"><b>${esc(l.label)}</b><small>${esc(l.sub)}</small></button>`).join("")}
+      </div>
+      <div class="stay-hint">가격은 사이트에서 실시간으로 확인돼요. 세금·수수료 포함 여부는 사이트마다 달라요.</div>
+    </div>`;
+}
+
+async function openStaySite(place, key) {
+  const info = stayInfo(place);
+  const link = stayLinks(place, info).find(l => l.key === key);
+  if (!link) return;
+  window.open(link.url, "_blank", "noopener");
+  if (link.copy) {
+    const when = info.checkin ? ` ${info.checkin.getMonth() + 1}/${info.checkin.getDate()}~${info.checkout.getMonth() + 1}/${info.checkout.getDate()}` : "";
+    try { if (navigator.clipboard) await navigator.clipboard.writeText(info.area); } catch (e) {}
+    showToast(`${link.label}에서 '${info.area}'${when}, ${info.people}명으로 검색한 뒤 '낮은 가격순'으로 정렬하세요.`, 6000);
+  }
 }
 
 // --- 기차·고속버스 예매 연결 (국내) ---
@@ -2911,6 +2992,7 @@ function renderTimeline() {
           <button class="chip-btn" data-action="edit" data-id="${id}">${window.icon("pencil", 16)}편집</button>
           ${altChipHtml(place)}
           ${topChipHtml(place)}
+          ${place.category === "hotel" ? `<button class="chip-btn chip-stay ${expandedStays.has(place.id) ? "on" : ""}" data-action="stays" data-id="${esc(place.id)}">${window.icon("wallet", 16)}${expandedStays.has(place.id) ? "접기" : "최저가 숙소"}</button>` : ""}
           <span class="edit-only-actions">
             <button class="chip-btn chip-icon" data-action="up" data-id="${id}" ${index === 0 ? "disabled" : ""} aria-label="위로">${window.icon("up", 18)}</button>
             <button class="chip-btn chip-icon" data-action="down" data-id="${id}" ${index === dayPlaces.length - 1 ? "disabled" : ""} aria-label="아래로">${window.icon("down", 18)}</button>
@@ -2919,6 +3001,7 @@ function renderTimeline() {
         </div>
         ${expandedAlts.has(place.id) ? altListHtml(place) : ""}
         ${topPanel.placeId === place.id ? topPanelHtml(place) : ""}
+        ${expandedStays.has(place.id) ? stayPanelHtml(place) : ""}
       `;
     }
 
