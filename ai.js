@@ -22,7 +22,7 @@
   };
 
   // Google Places 키 (웹사이트 제한 걸린 공개용 키만 여기에 넣기)
-  const DEFAULT_PLACES_KEY = "";
+  const DEFAULT_PLACES_KEY = "AIzaSyDRnpb7y9YUvDBsK2lblV4awL1wFTxqO64"; // 웹사이트(github.io) + Places API (New)만 허용된 키
   const PLACES_DAILY_LIMIT = 60;
   const PLACES_USAGE_KEY = "routy_places_usage";
 
