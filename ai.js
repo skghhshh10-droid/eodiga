@@ -35,7 +35,7 @@
         model: s.model || DEFAULT_MODEL,
         kakaoKey: s.kakaoKey || "",
         naverKey: s.naverKey === undefined ? DEFAULT_NAVER_KEY : s.naverKey,
-        placesKey: s.placesKey === undefined ? DEFAULT_PLACES_KEY : s.placesKey,
+        placesKey: s.placesKey || DEFAULT_PLACES_KEY, // 빈 값이 저장돼 있어도 기본 키 사용
         placesSort: s.placesSort === "count" ? "count" : "rating",
         noSpicy: !!s.noSpicy,
         avoidFoods: s.avoidFoods ? String(s.avoidFoods).slice(0, 100) : ""

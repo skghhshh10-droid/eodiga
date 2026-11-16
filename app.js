@@ -2417,8 +2417,19 @@ function budgetFit(items, budget) {
 }
 
 // 일정 생성 직후: 식당·카페를 주변 Google 1위로 자동 교체 (원래 식당은 후보로)
+const autoTopRunning = new Set();
 async function autoPickTop(trip) {
   if (!window.RoutyAI.hasPlacesKey() || !trip || trip.source !== "ai") return;
+  if (autoTopRunning.has(trip.id)) return;
+  autoTopRunning.add(trip.id);
+  try {
+    await autoPickTopInner(trip);
+  } finally {
+    autoTopRunning.delete(trip.id);
+  }
+}
+
+async function autoPickTopInner(trip) {
   const sort = window.RoutyAI.getSettings().placesSort;
   const targets = trip.places.filter(p => ["restaurant", "cafe"].includes(p.category) && !p.googlePlaceId && !p.autoTopTried && hasCoords(p));
   if (!targets.length) return;
@@ -2791,6 +2802,8 @@ function showItineraryView() {
     // AI 일정 중 아직 위치 확인 안 된 장소가 있으면 이어서 확인
     const t = state.activeTrip;
     if (t && t.source === "ai") {
+      // 예전에 만든 일정도 식당이 아직 Google 1위로 안 바뀌었으면 이어서 처리
+      if (t.places.some(p => ["restaurant", "cafe"].includes(p.category) && !p.googlePlaceId && !p.autoTopTried)) autoPickTop(t);
       const queued = new Set(verifyQueue.filter(j => j.tripId === t.id).map(j => j.id));
       const pending = t.places.filter(p => !p.coordChecked && p.category !== "transit" && !queued.has(p.id)).map(p => p.id);
       if (pending.length) verifyCoordinates(t.id, pending);
