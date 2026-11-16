@@ -378,7 +378,11 @@
             <div class="form-group">
               <label for="setting-places-key">Google Places API 키 (식당 별점 TOP 5)</label>
               <input type="text" id="setting-places-key" placeholder="AIza..." autocomplete="off" spellcheck="false">
-              <small class="settings-hint">식당·카페 카드에 '주변 TOP 5'(별점순·리뷰수순)가 생겨요. 웹사이트 제한을 건 키만 넣고, 하루 <span id="places-limit">40</span>회까지만 조회해요. <span id="places-usage"></span></small>
+              <select id="setting-places-sort" style="margin-top:8px">
+                <option value="rating">일정 만들 때 별점 1위로 고르기 (리뷰 30개 이상)</option>
+                <option value="count">일정 만들 때 리뷰수 1위로 고르기</option>
+              </select>
+              <small class="settings-hint">일정을 만들면 식당·카페를 주변 Google 1위로 자동으로 바꾸고, 카드의 '주변 TOP 5'에서 다른 곳으로 바꿀 수 있어요. 웹사이트 제한을 건 키만 넣고, 하루 <span id="places-limit">40</span>회까지만 조회해요. <span id="places-usage"></span></small>
             </div>
             <div class="settings-actions">
               <button class="btn btn-sm btn-primary" id="btn-save-kakao">저장</button>
