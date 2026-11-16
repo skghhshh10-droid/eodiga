@@ -36,10 +36,12 @@
         kakaoKey: s.kakaoKey || "",
         naverKey: s.naverKey === undefined ? DEFAULT_NAVER_KEY : s.naverKey,
         placesKey: s.placesKey === undefined ? DEFAULT_PLACES_KEY : s.placesKey,
-        placesSort: s.placesSort === "count" ? "count" : "rating"
+        placesSort: s.placesSort === "count" ? "count" : "rating",
+        noSpicy: !!s.noSpicy,
+        avoidFoods: s.avoidFoods ? String(s.avoidFoods).slice(0, 100) : ""
       };
     } catch (e) {
-      return { apiKey: "", model: DEFAULT_MODEL, kakaoKey: "", naverKey: DEFAULT_NAVER_KEY, placesKey: DEFAULT_PLACES_KEY, placesSort: "rating" };
+      return { apiKey: "", model: DEFAULT_MODEL, kakaoKey: "", naverKey: DEFAULT_NAVER_KEY, placesKey: DEFAULT_PLACES_KEY, placesSort: "rating", noSpicy: false, avoidFoods: "" };
     }
   }
 
@@ -117,6 +119,17 @@
     return `- 예산(일행 ${people || 1}명 전체, 여행 전체 기간): ${parts.join(", ")}. 금액이 정해진 항목은 그 안에 맞추고(숙박비는 모든 숙박일 합계), 정해지지 않은 항목은 소비 성향을 따르세요.`;
   }
 
+  // 식성 (설정에 저장, 모든 일정·식당 추천에 적용)
+  function dietLine() {
+    const s = getSettings();
+    const out = [];
+    if (s.noSpicy) {
+      out.push("- 식성(매우 중요): 일행이 매운 음식을 전혀 못 먹습니다. 대표 메뉴가 매운 식당(마라탕·마라샹궈·훠궈·떡볶이·짬뽕·닭발·쭈꾸미·낙지볶음·매운탕·아구찜·해물찜·닭갈비·찜닭·불닭·김치찜·부대찌개·육개장·감자탕·탄탄면·태국/인도 커리 전문점 등)은 절대 고르지 말고, 맵지 않은 메뉴가 중심인 곳을 고르세요. 식당 description에는 맵지 않은 추천 메뉴를 적으세요.");
+    }
+    if (s.avoidFoods) out.push(`- 못 먹는 음식: ${s.avoidFoods}. 이 음식이 주메뉴인 식당은 제외하세요.`);
+    return out.join("\n");
+  }
+
   function buildCreatePrompt(input) {
     const styles = (input.styles || []).map(s => STYLE_LABELS[s] || s).join(", ") || "자유";
     const lines = [
@@ -129,6 +142,7 @@
       `- 소비 성향: ${BUDGET_LABELS[input.budget] || "보통"}`,
       budgetPlanLine(input.budgetPlan, input.people),
       `- 선호 스타일: ${styles}`,
+      dietLine(),
       input.request ? `- 추가 요청: ${input.request}` : "",
       OUTPUT_SPEC
     ];
@@ -164,6 +178,7 @@
       JSON.stringify(slim),
       "",
       `사용자 요청: ${instruction}`,
+      dietLine(),
       "",
       ...scope,
       OUTPUT_SPEC
@@ -470,9 +485,10 @@
       "이 식사 시간에 이 위치에서 도보·짧은 이동으로 갈 수 있는 실제 개별 식당 5곳을 추천하세요.",
       "현지에서 평판이 좋고 리뷰가 많은 유명한 곳을 우선하고, 인기 높은 순서대로 정렬하세요. 별점·리뷰 수 숫자는 쓰지 마세요.",
       `"${place.name}" 자체와 지역명(○○거리, 먹자골목)은 제외하고, 메뉴 종류나 가격대가 너무 겹치지 않게.`,
+      dietLine(),
       '반드시 JSON 하나만 출력: {"alternatives":[{"name":"한국어 이름","searchName":"현지어/영어 이름","lat":0,"lng":0,"description":"대표 메뉴·특징 한 문장","price":12000}]}',
       "price는 1인 기준 원화 정수, lat/lng는 실제 좌표(소수점 4자리 이상)."
-    ].join("\n");
+    ].filter(Boolean).join("\n");
     const raw = await callGemini(prompt, opts);
     const list = normalizeAlternatives(raw.alternatives || raw);
     if (!list) throw new Error("식당 후보를 찾지 못했어요. 잠시 후 다시 시도해 주세요.");
