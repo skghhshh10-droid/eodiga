@@ -23,7 +23,7 @@
 
   // Google Places 키 (웹사이트 제한 걸린 공개용 키만 여기에 넣기)
   const DEFAULT_PLACES_KEY = "";
-  const PLACES_DAILY_LIMIT = 40;
+  const PLACES_DAILY_LIMIT = 60;
   const PLACES_USAGE_KEY = "routy_places_usage";
 
   // ---------- 설정 ----------
@@ -35,10 +35,11 @@
         model: s.model || DEFAULT_MODEL,
         kakaoKey: s.kakaoKey || "",
         naverKey: s.naverKey === undefined ? DEFAULT_NAVER_KEY : s.naverKey,
-        placesKey: s.placesKey === undefined ? DEFAULT_PLACES_KEY : s.placesKey
+        placesKey: s.placesKey === undefined ? DEFAULT_PLACES_KEY : s.placesKey,
+        placesSort: s.placesSort === "count" ? "count" : "rating"
       };
     } catch (e) {
-      return { apiKey: "", model: DEFAULT_MODEL, kakaoKey: "", naverKey: DEFAULT_NAVER_KEY, placesKey: DEFAULT_PLACES_KEY };
+      return { apiKey: "", model: DEFAULT_MODEL, kakaoKey: "", naverKey: DEFAULT_NAVER_KEY, placesKey: DEFAULT_PLACES_KEY, placesSort: "rating" };
     }
   }
 
@@ -426,7 +427,7 @@
         headers: {
           "Content-Type": "application/json",
           "X-Goog-Api-Key": key,
-          "X-Goog-FieldMask": "places.id,places.displayName,places.location,places.rating,places.userRatingCount,places.primaryTypeDisplayName,places.googleMapsUri,places.businessStatus"
+          "X-Goog-FieldMask": "places.id,places.displayName,places.location,places.rating,places.userRatingCount,places.primaryTypeDisplayName,places.googleMapsUri,places.businessStatus,places.priceLevel"
         },
         body: JSON.stringify(body),
         signal: opts.signal
@@ -453,7 +454,8 @@
         rating: typeof p.rating === "number" ? p.rating : 0,
         count: p.userRatingCount || 0,
         typeLabel: (p.primaryTypeDisplayName && p.primaryTypeDisplayName.text) || "",
-        mapsUri: p.googleMapsUri || ""
+        mapsUri: p.googleMapsUri || "",
+        priceLevel: p.priceLevel || ""
       }))
       .filter(p => p.name && typeof p.lat === "number");
   }

@@ -631,7 +631,8 @@ function setupSettings() {
     const naverKey = naverInput.value.trim();
     const kakaoKey = kakaoInput.value.trim();
     const placesKey = document.getElementById("setting-places-key").value.trim();
-    window.RoutyAI.saveSettings({ naverKey, kakaoKey, placesKey });
+    const placesSort = document.getElementById("setting-places-sort").value;
+    window.RoutyAI.saveSettings({ naverKey, kakaoKey, placesKey, placesSort });
     topCache.clear();
     failedEngines.delete("naver");
     failedEngines.delete("kakao");
@@ -726,6 +727,7 @@ function renderSettingsTab() {
   document.getElementById("setting-kakao-key").value = s.kakaoKey || "";
   document.getElementById("setting-naver-key").value = s.naverKey || "";
   document.getElementById("setting-places-key").value = s.placesKey || "";
+  document.getElementById("setting-places-sort").value = s.placesSort || "rating";
   document.getElementById("places-limit").textContent = window.RoutyAI.PLACES_DAILY_LIMIT;
   document.getElementById("places-usage").textContent = s.placesKey ? `(오늘 ${window.RoutyAI.placesUsage().n}회 사용)` : "";
   const statusEl = document.getElementById("settings-status");
@@ -969,7 +971,9 @@ function setupPlannerForm() {
       state.activeTripDay = 1;
       saveDraft();
       showItineraryView();
-      if (trip.source === "ai") verifyCoordinates(trip.id, trip.places.map(p => p.id));
+      if (trip.source === "ai") {
+        autoPickTop(trip).then(() => verifyCoordinates(trip.id, trip.places.map(p => p.id)));
+      }
       showToast(trip.source === "ai" ? "초안이 나왔어요. 마음에 들면 '저장', 아니면 '다시 만들기'를 누르세요." : "샘플 일정을 만들었습니다.", 4000);
     }
   });
@@ -1088,7 +1092,7 @@ async function regenerateActiveTrip() {
   state.activeTripDay = 1;
   renderItineraryAll();
   persistActiveTrip();
-  if (fresh.source === "ai") verifyCoordinates(fresh.id, fresh.places.map(p => p.id));
+  if (fresh.source === "ai") autoPickTop(fresh).then(() => verifyCoordinates(fresh.id, fresh.places.map(p => p.id)));
   showToast("새 일정을 만들었어요.", 6000, {
     label: "이전 초안으로",
     onClick: () => {
@@ -2320,16 +2324,93 @@ function topChipHtml(place) {
   return `<button class="chip-btn chip-top ${open ? "on" : ""}" data-action="top5" data-id="${esc(place.id)}">${window.icon("star", 16)}${open ? "TOP 5 접기" : "주변 TOP 5"}</button>`;
 }
 
-function sortedTopItems() {
-  const items = topPanel.items.slice();
-  if (topPanel.sort === "count") {
+function rankTopItems(items, sort) {
+  items = items.slice();
+  if (sort === "count") {
     return items.sort((a, b) => b.count - a.count || b.rating - a.rating).slice(0, 5);
   }
-  // 별점순: 리뷰가 너무 적은 곳(별점 5.0에 리뷰 2개 같은)은 빼되, 부족하면 기준을 낮춘다
-  let pool = items.filter(i => i.count >= TOP_MIN_REVIEWS);
-  if (pool.length < 5) pool = items.filter(i => i.count >= 5);
-  if (pool.length < 5) pool = items;
-  return pool.sort((a, b) => b.rating - a.rating || b.count - a.count).slice(0, 5);
+  // 별점순: 리뷰 30개 이상인 곳을 먼저, 모자라면 리뷰 적은 곳을 뒤에 채운다 (별점 5.0·리뷰 2개가 1위가 되지 않게)
+  const byRating = (a, b) => b.rating - a.rating || b.count - a.count;
+  const tiers = [
+    items.filter(i => i.count >= TOP_MIN_REVIEWS),
+    items.filter(i => i.count >= 5 && i.count < TOP_MIN_REVIEWS),
+    items.filter(i => i.count < 5)
+  ];
+  return tiers.flatMap(t => t.sort(byRating)).slice(0, 5);
+}
+
+function sortedTopItems() {
+  return rankTopItems(budgetFit(topPanel.items, state.activeTrip && state.activeTrip.budget), topPanel.sort);
+}
+
+// 소비 성향에 안 맞는 가격대 제외 (가격 정보 없는 곳은 남김)
+const PRICE_BLOCK = {
+  low: ["PRICE_LEVEL_EXPENSIVE", "PRICE_LEVEL_VERY_EXPENSIVE"],
+  medium: ["PRICE_LEVEL_VERY_EXPENSIVE"],
+  high: []
+};
+function budgetFit(items, budget) {
+  const block = PRICE_BLOCK[budget] || PRICE_BLOCK.medium;
+  const fit = items.filter(i => !block.includes(i.priceLevel));
+  return fit.length ? fit : items;
+}
+
+// 일정 생성 직후: 식당·카페를 주변 Google 1위로 자동 교체 (원래 식당은 후보로)
+async function autoPickTop(trip) {
+  if (!window.RoutyAI.hasPlacesKey() || !trip || trip.source !== "ai") return;
+  const sort = window.RoutyAI.getSettings().placesSort;
+  const targets = trip.places.filter(p => ["restaurant", "cafe"].includes(p.category) && !p.googlePlaceId && !p.autoTopTried && hasCoords(p));
+  if (!targets.length) return;
+  const used = new Set(trip.places.filter(p => p.googlePlaceId).map(p => p.googlePlaceId));
+  let picked = 0, stopped = "";
+  renderAutoTopStatus(`Google ${sort === "count" ? "리뷰수" : "별점"} 1위 식당 찾는 중… 0/${targets.length}`);
+  for (let i = 0; i < targets.length; i++) {
+    const place = targets[i];
+    if (findTripById(trip.id) !== trip || !trip.places.includes(place)) continue;
+    const type = place.category === "cafe" ? "cafe" : "restaurant";
+    const center = { lat: place.lat, lng: place.lng };
+    const cacheKey = `${center.lat.toFixed(4)},${center.lng.toFixed(4)},${type}`;
+    place.autoTopTried = true;
+    try {
+      let items = topCache.get(cacheKey);
+      if (!items) {
+        items = await window.RoutyAI.placesNearby(center.lat, center.lng, { type });
+        topCache.set(cacheKey, items);
+      }
+      const ranked = rankTopItems(budgetFit(items, trip.budget), sort);
+      const best = ranked.find(it => !used.has(it.id));
+      if (best && trip.places.includes(place)) {
+        used.add(best.id);
+        applyTopPick(place, best, center);
+        place.autoTop = sort;
+        picked++;
+      }
+    } catch (e) {
+      stopped = e.message || "";
+      if (/한도|할당량|거부|키/.test(stopped)) break;
+    }
+    renderAutoTopStatus(`Google ${sort === "count" ? "리뷰수" : "별점"} 1위 식당 찾는 중… ${i + 1}/${targets.length}`);
+  }
+  renderAutoTopStatus("");
+  if (state.activeTrip === trip) {
+    renderItineraryAll();
+    persistActiveTrip();
+  }
+  if (picked) showToast(`식당 ${picked}곳을 Google ${sort === "count" ? "리뷰수" : "별점"} 1위로 골랐어요. 'TOP 5'에서 바꿀 수 있어요.`, 5000);
+  else if (stopped) showToast(`Google 식당 조회를 못 했어요: ${stopped}`, 5000);
+}
+
+function renderAutoTopStatus(text) {
+  const el = document.getElementById("verify-status");
+  if (!el) return;
+  if (text) {
+    el.dataset.autotop = "1";
+    el.textContent = text;
+    el.style.display = "";
+  } else if (el.dataset.autotop) {
+    delete el.dataset.autotop;
+    renderVerifyStatus();
+  }
 }
 
 function findTopItem(pid) {
@@ -2394,7 +2475,7 @@ async function toggleTopPanel(placeId) {
   const center = place.topCenter || { lat: place.lat, lng: place.lng };
   const type = place.category === "cafe" ? "cafe" : "restaurant";
   const cacheKey = `${center.lat.toFixed(4)},${center.lng.toFixed(4)},${type}`;
-  Object.assign(topPanel, { placeId, items: [], error: "", loading: !topCache.has(cacheKey) });
+  Object.assign(topPanel, { placeId, items: [], error: "", loading: !topCache.has(cacheKey), sort: window.RoutyAI.getSettings().placesSort });
   if (topCache.has(cacheKey)) {
     topPanel.items = topCache.get(cacheKey);
     renderTimeline();
@@ -2425,25 +2506,30 @@ function pickTopPlace(placeId, pid) {
   const it = findTopItem(pid);
   if (!place || !it) return;
   withUndo(`"${it.name}"(으)로 바꿨어요. 원래 식당은 후보에 남아 있어요.`, () => {
-    if (place.category === "restaurant" || place.category === "cafe") {
-      const prev = {
-        name: place.name, searchName: place.searchName || "", lat: place.lat, lng: place.lng,
-        description: place.description || "", price: place.price
-      };
-      const others = (place.alternatives || []).filter(a => a.name !== it.name);
-      place.alternatives = [prev].concat(others).slice(0, 5);
-    }
-    if (!place.topCenter) place.topCenter = { lat: place.lat, lng: place.lng };
-    place.name = it.name;
-    place.searchName = "";
-    place.lat = it.lat;
-    place.lng = it.lng;
-    place.description = it.typeLabel ? `${it.typeLabel} · Google 지도에서 고른 곳` : "Google 지도에서 고른 곳";
-    place.googlePlaceId = it.id;
-    place.coordMissing = false;
-    place.coordFixed = false;
-    place.coordChecked = true; // Google 좌표라 다시 보정할 필요 없음
+    applyTopPick(place, it);
+    delete place.autoTop;
   });
+}
+
+function applyTopPick(place, it, center) {
+  if (place.category === "restaurant" || place.category === "cafe") {
+    const prev = {
+      name: place.name, searchName: place.searchName || "", lat: place.lat, lng: place.lng,
+      description: place.description || "", price: place.price
+    };
+    const others = (place.alternatives || []).filter(a => a.name !== it.name);
+    place.alternatives = [prev].concat(others).slice(0, 5);
+  }
+  if (!place.topCenter) place.topCenter = center || { lat: place.lat, lng: place.lng };
+  place.name = it.name;
+  place.searchName = "";
+  place.lat = it.lat;
+  place.lng = it.lng;
+  place.description = it.typeLabel ? `${it.typeLabel} · Google 지도에서 고른 곳` : "Google 지도에서 고른 곳";
+  place.googlePlaceId = it.id;
+  place.coordMissing = false;
+  place.coordFixed = false;
+  place.coordChecked = true; // Google 좌표라 다시 보정할 필요 없음
 }
 
 // AI가 바꾼 장소 표시용
@@ -2499,7 +2585,7 @@ async function runVerifyQueue() {
     const job = verifyQueue.shift();
     const trip = findTripById(job.tripId);
     const place = trip && trip.places.find(p => p.id === job.id);
-    if (place && place.category !== "transit") {
+    if (place && place.category !== "transit" && !place.googlePlaceId) {
       try {
         const center = medianCenter(trip.places) || { lat: place.lat, lng: place.lng };
         const query = place.searchName || place.name;
@@ -2979,7 +3065,7 @@ function renderTimeline() {
       card.innerHTML = `
         <div class="timeline-dot"></div>
         <div class="timeline-item-header">
-          <span class="timeline-time">${index + 1} · ${esc(place.time)} · ${catKorean}${changed ? ` <em class="changed-badge">AI 변경</em>` : ""}${place.coordFixed ? ` <em class="fixed-badge" title="지도 데이터로 위치를 보정했어요">위치 보정</em>` : ""}</span>
+          <span class="timeline-time">${index + 1} · ${esc(place.time)} · ${catKorean}${changed ? ` <em class="changed-badge">AI 변경</em>` : ""}${place.coordFixed ? ` <em class="fixed-badge" title="지도 데이터로 위치를 보정했어요">위치 보정</em>` : ""}${place.autoTop ? ` <em class="top-badge">★ Google ${place.autoTop === "count" ? "리뷰수" : "별점"} 1위</em>` : ""}</span>
           <span class="timeline-place-name">${esc(place.name)}</span>
           ${priceHtml}
         </div>

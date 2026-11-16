@@ -885,3 +885,5 @@ input, select, textarea {
 .stay-hint { margin-top: 8px; font-size: var(--fs-xs); color: var(--text-muted); }
 [data-theme="dark"] .stay-link { background: rgba(255,255,255,0.05); }
 [data-theme="dark"] .chip-btn.chip-stay { color: #5eead4; }
+.top-badge { font-style: normal; font-size: 11px; font-weight: 700; color: #a16207; background: rgba(234, 179, 8, 0.15); padding: 1px 6px; border-radius: 6px; margin-left: 2px; }
+[data-theme="dark"] .top-badge { color: #facc15; }
