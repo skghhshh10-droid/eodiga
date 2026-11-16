@@ -171,6 +171,7 @@ document.addEventListener("DOMContentLoaded", () => {
   renderSidebarTrips();
   window.addEventListener("orientationchange", () => setTimeout(refreshMapSize, 300));
   updateAiNotice();
+  updateDietHint();
 
   // Render initial explorer state
   renderExploreTab();
@@ -627,6 +628,15 @@ function setupSettings() {
   const kakaoInput = document.getElementById("setting-kakao-key");
   const kakaoStatus = document.getElementById("kakao-status");
   const naverInput = document.getElementById("setting-naver-key");
+  document.getElementById("btn-save-diet").addEventListener("click", () => {
+    window.RoutyAI.saveSettings({
+      noSpicy: document.getElementById("setting-no-spicy").checked,
+      avoidFoods: document.getElementById("setting-avoid-foods").value.trim()
+    });
+    updateDietHint();
+    showToast("식성을 저장했어요. 다음에 만드는 일정부터 적용돼요.");
+  });
+
   document.getElementById("btn-save-kakao").addEventListener("click", () => {
     const naverKey = naverInput.value.trim();
     const kakaoKey = kakaoInput.value.trim();
@@ -728,6 +738,8 @@ function renderSettingsTab() {
   document.getElementById("setting-naver-key").value = s.naverKey || "";
   document.getElementById("setting-places-key").value = s.placesKey || "";
   document.getElementById("setting-places-sort").value = s.placesSort || "rating";
+  document.getElementById("setting-no-spicy").checked = !!s.noSpicy;
+  document.getElementById("setting-avoid-foods").value = s.avoidFoods || "";
   document.getElementById("places-limit").textContent = window.RoutyAI.PLACES_DAILY_LIMIT;
   document.getElementById("places-usage").textContent = s.placesKey ? `(오늘 ${window.RoutyAI.placesUsage().n}회 사용)` : "";
   const statusEl = document.getElementById("settings-status");
@@ -2014,6 +2026,52 @@ function formatMinutes(m) {
 }
 
 
+
+// --- 식성: 매운 음식·못 먹는 음식 ---
+const SPICY_RE = /마라|훠궈|떡볶이|엽떡|짬뽕|닭발|쭈꾸미|주꾸미|낙지|매운|불닭|아구찜|아귀찜|해물찜|닭갈비|찜닭|김치찜|김치찌개|부대찌개|육개장|감자탕|탄탄|쓰촨|사천|똠얌|커리|카레|태국 음식|인도 음식|麻辣|火锅|辣|spicy|sichuan|szechuan|hot ?pot|curry|thai|indian/i;
+
+// 흔한 표현은 가게 이름에 나오는 단어로 넓혀서 찾는다
+const DIET_SYNONYMS = {
+  "날것": ["회", "횟집", "스시", "초밥", "사시미", "육회", "오마카세", "물회"],
+  "회": ["횟집", "스시", "초밥", "사시미", "물회", "오마카세"],
+  "해산물": ["해물", "횟집", "수산", "조개", "대게", "킹크랩", "굴", "생선", "스시", "초밥", "랍스터", "새우", "seafood"],
+  "생선": ["횟집", "스시", "초밥", "생선구이", "수산"],
+  "돼지고기": ["돼지", "삼겹", "돈까스", "돈카츠", "보쌈", "족발", "국밥", "순대"],
+  "소고기": ["소고기", "한우", "갈비", "스테이크", "규카츠", "야키니쿠"],
+  "닭고기": ["치킨", "닭", "삼계탕"],
+  "고수": ["베트남", "쌀국수", "태국", "멕시칸", "타코"]
+};
+
+function dietWords() {
+  const s = window.RoutyAI.getSettings();
+  const words = (s.avoidFoods || "").split(/[,，、\/\s]+/).map(w => w.trim()).filter(w => w.length >= 1);
+  return words.flatMap(w => [w].concat(DIET_SYNONYMS[w] || []));
+}
+
+// 이 가게가 식성에 안 맞을 수 있는지 (이름·종류로 추정)
+function dietConflict(it) {
+  const s = window.RoutyAI.getSettings();
+  const text = `${it.name || ""} ${it.typeLabel || ""}`;
+  if (s.noSpicy && SPICY_RE.test(text)) return "매울 수 있음";
+  const words = (s.avoidFoods || "").split(/[,，、\/\s]+/).map(w => w.trim()).filter(Boolean);
+  const base = words.find(w => [w].concat(DIET_SYNONYMS[w] || []).some(k => k.length > 1 ? text.includes(k) : new RegExp(`(^|\\s)${k}(\\s|$)`).test(text)));
+  return base ? `${base} 주의` : "";
+}
+
+function dietSort(ranked) {
+  return ranked.filter(i => !dietConflict(i)).concat(ranked.filter(i => dietConflict(i)));
+}
+
+function updateDietHint() {
+  const el = document.getElementById("diet-hint");
+  if (!el) return;
+  const s = window.RoutyAI.getSettings();
+  const parts = [];
+  if (s.noSpicy) parts.push("매운 음식 제외");
+  if (s.avoidFoods) parts.push(`${s.avoidFoods} 제외`);
+  el.textContent = parts.length ? `식성 반영 중: ${parts.join(" · ")} (설정에서 바꿀 수 있어요)` : "";
+}
+
 // --- 숙소 최저가 바로가기 ---
 // 실시간 가격 API는 개인에게 열려 있지 않아, 날짜·인원을 채운 '가격 낮은 순' 검색 화면을 연다.
 const expandedStays = new Set();
@@ -2340,7 +2398,9 @@ function rankTopItems(items, sort) {
 }
 
 function sortedTopItems() {
-  return rankTopItems(budgetFit(topPanel.items, state.activeTrip && state.activeTrip.budget), topPanel.sort);
+  const pool = budgetFit(topPanel.items, state.activeTrip && state.activeTrip.budget);
+  return dietSort(rankTopItems(pool.filter(i => !dietConflict(i)), topPanel.sort)
+    .concat(rankTopItems(pool.filter(i => dietConflict(i)), topPanel.sort))).slice(0, 5);
 }
 
 // 소비 성향에 안 맞는 가격대 제외 (가격 정보 없는 곳은 남김)
@@ -2377,7 +2437,8 @@ async function autoPickTop(trip) {
         items = await window.RoutyAI.placesNearby(center.lat, center.lng, { type });
         topCache.set(cacheKey, items);
       }
-      const ranked = rankTopItems(budgetFit(items, trip.budget), sort);
+      // 식성에 안 맞는 곳은 1위 후보에서 빼고, 남는 곳이 없으면 AI가 고른 식당을 그대로 둔다
+      const ranked = rankTopItems(budgetFit(items, trip.budget).filter(it => !dietConflict(it)), sort);
       const best = ranked.find(it => !used.has(it.id));
       if (best && trip.places.includes(place)) {
         used.add(best.id);
@@ -2439,6 +2500,7 @@ function topPanelHtml(place) {
           <span class="top-rank">${i + 1}</span>
           <div class="alt-body">
             <strong>${esc(it.name)}</strong>
+            ${dietConflict(it) ? `<span class="diet-tag">${esc(dietConflict(it))}</span>` : ""}
             <span class="top-meta"><b>★ ${it.rating ? it.rating.toFixed(1) : "-"}</b> 리뷰 ${it.count.toLocaleString("ko-KR")}${it.typeLabel ? ` · ${esc(it.typeLabel)}` : ""}${place.lat ? ` · ${formatDistance(distanceMeters(place, it))}` : ""}</span>
           </div>
           <div class="alt-actions">

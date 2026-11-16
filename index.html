@@ -198,6 +198,7 @@
             <div class="form-group">
               <label for="input-request">추가 요청사항 (선택)</label>
               <textarea id="input-request" rows="3" placeholder="예: 둘째 날은 비 올 때 갈 실내 위주로, 숙소는 하카타역 근처, 라멘 맛집 꼭 넣어줘"></textarea>
+              <small class="settings-hint diet-hint" id="diet-hint"></small>
             </div>
 
             <button type="submit" class="btn btn-block btn-primary" id="btn-generate-itinerary">
@@ -358,6 +359,19 @@
               <button class="btn btn-sm btn-secondary" id="btn-test-settings">연결 테스트</button>
             </div>
             <div class="settings-status" id="settings-status"></div>
+          </div>
+
+          <div class="settings-card">
+            <h3>식성</h3>
+            <p class="settings-desc">모든 일정의 식당 추천과 Google 1위 자동 선택에 적용돼요.</p>
+            <label class="check-row"><input type="checkbox" id="setting-no-spicy"> 매운 음식 못 먹음</label>
+            <div class="form-group" style="margin-top:10px">
+              <label for="setting-avoid-foods">그 밖에 못 먹는 음식 (선택)</label>
+              <input type="text" id="setting-avoid-foods" placeholder="예: 날것, 해산물, 고수" maxlength="100">
+            </div>
+            <div class="settings-actions">
+              <button class="btn btn-sm btn-primary" id="btn-save-diet">저장</button>
+            </div>
           </div>
 
           <div class="settings-card">
