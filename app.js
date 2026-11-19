@@ -900,7 +900,8 @@ function openTemplateSetup(template) {
     .map(n => `<option value="${n}" ${n === template.duration ? "selected" : ""}>${n}일${n === template.duration ? " (기본)" : ""}</option>`).join("");
   $("tpl-people").innerHTML = Array.from({ length: 10 }, (_, i) => i + 1)
     .map(n => `<option value="${n}" ${n === 2 ? "selected" : ""}>${n}명</option>`).join("");
-  const airports = templateAirports(template);
+  const tplKind = tripKind({ destination: template.destination, title: template.title, places: template.places });
+  const airports = tplKind === "inland" ? [] : templateAirports(template);
   $("tpl-airport-group").style.display = airports.length ? "" : "none";
   $("tpl-airport").innerHTML = airports.map(c => `<option value="${c}">${AIRPORT_NAMES[c] || c} (${c})</option>`).join("");
   updateTplDaysNote();
@@ -1737,6 +1738,17 @@ function deletePlaceById(placeId) {
 // 타임라인 / 상세 모달 버튼 공통 처리
 function setupPlaceActionDelegation() {
   document.addEventListener("click", (e) => {
+    const rb = e.target.closest("[data-action=railblock], [data-action=railsite]");
+    if (rb && state.activeTrip) {
+      e.stopPropagation();
+      const day = parseInt(rb.getAttribute("data-day"), 10);
+      if (rb.getAttribute("data-action") === "railblock") {
+        const key = `rail-${state.activeTrip.id}-${day}`;
+        if (expandedFlights.has(key)) expandedFlights.delete(key); else expandedFlights.add(key);
+        renderTimeline();
+      } else openRailSite(day, rb.getAttribute("data-site"));
+      return;
+    }
     const btn = e.target.closest("[data-action][data-id]");
     if (!btn || !state.activeTrip) return;
     e.stopPropagation();
@@ -2124,7 +2136,7 @@ function formatMinutes(m) {
 
 
 
-const APP_VERSION = "v31";
+const APP_VERSION = "v32";
 
 // --- 식성: 매운 음식·못 먹는 음식 ---
 const SPICY_RE = /개미집|낙곱새|엽기|배떡|청년다방|불타는|홍짜장|교동짬뽕|마라|훠궈|떡볶이|엽떡|짬뽕|닭발|쭈꾸미|주꾸미|낙지|매운|불닭|아구찜|아귀찜|해물찜|닭갈비|찜닭|김치찜|김치찌개|부대찌개|육개장|감자탕|탄탄|쓰촨|사천|똠얌|커리|카레|태국 음식|인도 음식|麻辣|火锅|辣|spicy|sichuan|szechuan|hot ?pot|curry|thai|indian/i;
@@ -2361,6 +2373,77 @@ async function openStaySite(place, key) {
 }
 
 
+
+// --- 여행 종류: 해외 / 국내 섬 / 국내 내륙 (교통 예매 버튼을 다르게) ---
+const ISLAND_RE = /제주|서귀포|우도|가파도|마라도|추자|울릉|독도|백령|대청도|소청도|연평|덕적|자월|흑산|홍도|청산도|보길도|거문도|비금|도초|욕지도|사량도|연화도|매물도|외연도|관매도|조도/;
+const KOREA_RE = /한국|서울|부산|인천|대구|대전|광주|울산|세종|경기|강원|충북|충남|충청|전북|전남|전라|경북|경남|경상|제주|강릉|속초|양양|춘천|평창|경주|포항|안동|여수|순천|목포|전주|군산|통영|거제|남해|담양|보성|공주|부여|단양|제천|가평|파주|수원|용인|울릉|태안|보령|하동|진주|창원|김해|포천|정선|영월|삼척|동해|고성|남원|구례|광양|완도|해남/;
+
+function tripKind(trip) {
+  if (!trip) return "overseas";
+  const text = `${trip.destination || ""} ${trip.title || ""}`;
+  const pts = trip.places.filter(hasCoords);
+  const korean = pts.length ? pts.filter(p => isInKorea(p.lat, p.lng)).length >= pts.length / 2 : KOREA_RE.test(text);
+  if (!korean) return "overseas";
+  const island = ISLAND_RE.test(text) || pts.some(p => p.lat < 33.62 || p.lng > 130.6);
+  return island ? "island" : "inland";
+}
+
+function needsFlight(trip) {
+  return tripKind(trip) !== "inland";
+}
+
+function originCity(trip) {
+  return (trip && trip.origin) || (() => { try { return localStorage.getItem("routy_origin"); } catch (e) { return ""; } })() || "서울";
+}
+
+// 국내 내륙: 출발 도시 ↔ 목적지 기차·버스 예매 블록 (대중교통·알아서·택시일 때)
+function railBlockHtml(trip, day) {
+  if (!trip || tripKind(trip) !== "inland") return "";
+  if (["car", "walk"].includes(trip.transport)) return "";
+  const origin = originCity(trip);
+  const dest = (trip.destination || "").split(/[\/,·]/)[0].trim();
+  if (!dest || dest.includes(origin) || origin.includes(dest)) return "";
+  const lastDay = trip.days || 1;
+  const isOut = day === 1, isBack = day === lastDay && lastDay > 1;
+  if (!isOut && !isBack) return "";
+  // AI가 이미 기차·고속버스 구간을 넣은 날은 그 이동 칸의 예매 버튼을 쓰면 됨
+  const dayPlaces = trip.places.filter(p => p.day === day);
+  if (dayPlaces.some(p => p.move && ["train", "express"].includes(p.move.mode))) return "";
+  const date = getTripDate(trip, day);
+  const people = Math.max(1, parseInt(trip.people, 10) || 1);
+  const from = isOut ? origin : dest, to = isOut ? dest : origin;
+  const key = `rail-${trip.id}-${day}`;
+  const open = expandedFlights.has(key);
+  const when = date ? `${date.getMonth() + 1}/${date.getDate()}` : "날짜 미정";
+  const sites = [
+    { k: "korail", label: "코레일", sub: "KTX·ITX·무궁화" },
+    { k: "srt", label: "SRT", sub: "수서·동탄 출발" },
+    { k: "kobus", label: "고속버스", sub: "고속버스 통합예매" },
+    { k: "bustago", label: "시외버스", sub: "버스타고" }
+  ];
+  return `
+    <div class="move-connector rail-block">${window.icon("train", 15)}<span class="move-main">${isOut ? "가는 길" : "돌아오는 길"} · ${when} · ${people}명</span><span class="move-leg">${esc(from)} → ${esc(to)}</span>
+      <button class="move-ticket" data-action="railblock" data-day="${day}">${window.icon("ticket", 14)}${open ? "접기" : "기차·버스 예매"}</button></div>
+    ${open ? `<div class="stay-panel flight-panel rail-panel">
+      <div class="stay-links">${sites.map(x => `<button class="stay-link" data-action="railsite" data-day="${day}" data-site="${x.k}"><b>${x.label}</b><small>${x.sub}</small></button>`).join("")}</div>
+      <div class="stay-hint">예매 사이트는 역·날짜를 미리 채울 수 없어서, 누르면 '${when} ${esc(from)} → ${esc(to)}'를 복사해 두고 안내해요.</div>
+    </div>` : ""}`;
+}
+
+async function openRailSite(day, key) {
+  const trip = state.activeTrip;
+  const site = TICKET_SITES[key];
+  if (!site) return;
+  window.open(site.url, "_blank", "noopener");
+  const origin = originCity(trip);
+  const dest = (trip.destination || "").split(/[\/,·]/)[0].trim();
+  const isOut = day === 1;
+  const date = getTripDate(trip, day);
+  const txt = `${date ? `${date.getMonth() + 1}월 ${date.getDate()}일 ` : ""}${isOut ? origin : dest} → ${isOut ? dest : origin}`;
+  try { if (navigator.clipboard) await navigator.clipboard.writeText(txt); } catch (e) {}
+  showToast(`${site.label}에서 ${txt}, ${Math.max(1, parseInt(trip.people, 10) || 1)}명으로 검색하세요.`, 6000);
+}
+
 // --- 항공권: 날짜·인원·구간을 채운 검색 화면 열기 ---
 const expandedFlights = new Set();
 const AIRPORT_CODES = {
@@ -2486,6 +2569,9 @@ function flightLinks(ft) {
   // Google 항공편 (자연어 검색: 날짜·인원·왕복 인식 확인됨)
   const q = `Flights to ${out.to} from ${out.from}` + (out.date ? ` on ${ymd(out.date)}` : "") + (ret && ret.date ? ` through ${ymd(ret.date)}` : (out.date ? " oneway" : "")) + ` for ${people} adult${people > 1 ? "s" : ""}`;
   links.push({ key: "google", label: "Google 항공편", sub: "가격 추적", url: `https://www.google.com/travel/flights?q=${enc(q)}&hl=ko&curr=KRW` });
+  if (state.activeTrip && tripKind(state.activeTrip) === "island") {
+    links.push({ key: "ferry", label: "여객선", sub: "KSA 여객선예매(가보고싶은섬)", url: "https://island.haewun.co.kr/" });
+  }
   return links;
 }
 
@@ -2496,7 +2582,7 @@ function flightConnectorHtml(move, to) {
   const codes = airportCode(move.from) && airportCode(move.to) ? ` (${airportCode(move.from)}→${airportCode(move.to)})` : "";
   const cost = move.cost ? ` · 약 ${formatWon(move.cost)}/인 (예상)` : "";
   const mins = move.minutes ? ` ${formatMinutes(move.minutes)}` : "";
-  const ft = state.activeTrip ? flightTrip(state.activeTrip, to) : null;
+  const ft = state.activeTrip && needsFlight(state.activeTrip) ? flightTrip(state.activeTrip, to) : null;
   const open = expandedFlights.has(to.id);
   const btn = ft ? `<button class="move-ticket" data-action="flights" data-id="${id}">${window.icon("flight", 14)}${open ? "접기" : "항공권 찾기"}</button>` : "";
   const panel = ft && open ? flightPanelHtml(ft, id) : "";
@@ -2531,6 +2617,17 @@ function bookedFlightsHtml(trip) {
 // ⋯ 메뉴: 일정 전체 기준 항공권 찾기 (비행 구간이나 공항 카드로 이동해 패널 펼치기)
 function openTripFlights() {
   const trip = state.activeTrip;
+  if (!needsFlight(trip)) {
+    // 국내 내륙: 가는 길 기차·버스 예매 블록 열기
+    expandedFlights.add(`rail-${trip.id}-1`);
+    if (state.activeTripDay !== 1) { state.activeTripDay = 1; renderItineraryAll(); } else renderTimeline();
+    setTimeout(() => {
+      const el = document.querySelector(".rail-block");
+      if (el) el.scrollIntoView({ block: "center", behavior: "smooth" });
+      else showToast("이미 일정에 기차·버스 구간이 있어요. 그 이동 칸의 예매 버튼을 눌러 주세요.", 4500);
+    }, 100);
+    return;
+  }
   const leg = flightLegs(trip)[0];
   const target = leg ? leg.place : trip.places.find(isAirportPlace);
   if (!target && !synthFlightTrip(trip, null)) {
@@ -3654,6 +3751,9 @@ function renderTimeline() {
   const date = getTripDate(state.activeTrip, state.activeTripDay);
   dayHeader.textContent = `${date ? formatShortDate(date) + " · " : ""}${dayPlaces.length}곳 · ${costLabel(state.activeTrip, state.activeTripDay)}`;
   container.appendChild(dayHeader);
+  const railDay = state.activeTripDay;
+  const railHtml = railBlockHtml(state.activeTrip, railDay);
+  if (railHtml && railDay === 1) container.insertAdjacentHTML("beforeend", railHtml);
 
   dayPlaces.forEach((place, index) => {
     const card = document.createElement("div");
@@ -3716,7 +3816,7 @@ function renderTimeline() {
           <button class="chip-btn" data-action="edit" data-id="${id}">${window.icon("pencil", 16)}편집</button>
           ${altChipHtml(place)}
           ${topChipHtml(place)}
-          ${isAirportPlace(place) && !(place.move && place.move.mode === "flight") && synthFlightTrip(state.activeTrip, place) ? `<button class="chip-btn chip-flight ${expandedFlights.has(place.id) ? "on" : ""}" data-action="flights" data-id="${id}">${window.icon("flight", 16)}${expandedFlights.has(place.id) ? "접기" : "항공권 찾기"}</button>` : ""}
+          ${isAirportPlace(place) && needsFlight(state.activeTrip) && !(place.move && place.move.mode === "flight") && synthFlightTrip(state.activeTrip, place) ? `<button class="chip-btn chip-flight ${expandedFlights.has(place.id) ? "on" : ""}" data-action="flights" data-id="${id}">${window.icon("flight", 16)}${expandedFlights.has(place.id) ? "접기" : "항공권 찾기"}</button>` : ""}
           ${place.category === "hotel" ? `<button class="chip-btn chip-stay ${expandedStays.has(place.id) ? "on" : ""}" data-action="stays" data-id="${esc(place.id)}">${window.icon("wallet", 16)}${expandedStays.has(place.id) ? "접기" : "최저가 숙소"}</button>` : ""}
           <span class="edit-only-actions">
             <button class="chip-btn chip-icon" data-action="up" data-id="${id}" ${index === 0 ? "disabled" : ""} aria-label="위로">${window.icon("up", 18)}</button>
@@ -3727,7 +3827,7 @@ function renderTimeline() {
         ${expandedAlts.has(place.id) ? altListHtml(place) : ""}
         ${topPanel.placeId === place.id ? topPanelHtml(place) : ""}
         ${expandedStays.has(place.id) ? stayPanelHtml(place) : ""}
-        ${isAirportPlace(place) && !(place.move && place.move.mode === "flight") && expandedFlights.has(place.id) && synthFlightTrip(state.activeTrip, place) ? flightPanelHtml(synthFlightTrip(state.activeTrip, place), esc(place.id)) : ""}
+        ${isAirportPlace(place) && needsFlight(state.activeTrip) && !(place.move && place.move.mode === "flight") && expandedFlights.has(place.id) && synthFlightTrip(state.activeTrip, place) ? flightPanelHtml(synthFlightTrip(state.activeTrip, place), esc(place.id)) : ""}
       `;
     }
 
@@ -3738,6 +3838,7 @@ function renderTimeline() {
     }
     container.appendChild(card);
   });
+  if (railHtml && railDay !== 1) container.insertAdjacentHTML("beforeend", railHtml);
 }
 
 // --- Leaflet Map Engine ---
@@ -4334,6 +4435,7 @@ function renderSavedTrips() {
     card.querySelector(".btn-delete").addEventListener("click", () => deleteSavedTrip(trip.id));
     container.appendChild(card);
   });
+  if (railHtml && railDay !== 1) container.insertAdjacentHTML("beforeend", railHtml);
 }
 
 window.loadSavedTrip = function(tripId) {

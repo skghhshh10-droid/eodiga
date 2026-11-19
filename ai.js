@@ -137,7 +137,7 @@
     const lines = [
       "당신은 한국인 여행자를 위한 전문 여행 플래너입니다. 아래 조건으로 실제 여행 일정을 만들어 주세요.",
       `- 목적지: ${input.destination}`,
-      `- 출발지: ${input.origin || "서울"} (출발지에서 목적지까지 비행기가 필요하면 첫날 맨 앞에 도착 공항을 transit으로 넣고 move.mode "flight"로 오는 구간을, 마지막 날 맨 끝에 출발지 공항으로 돌아가는 flight 구간을 넣으세요)`,
+      `- 출발지: ${input.origin || "서울"}. 출발지와 목적지 사이 오가는 구간을 첫날 맨 앞(도착)과 마지막 날 맨 끝(귀가)에 넣으세요. 해외면 비행기(flight, 도착 공항을 transit으로). 국내 섬(제주·울릉도 등)이면 비행기(flight) 또는 배(ferry). 국내 내륙이면 비행기·배는 절대 쓰지 말고 ${input.transport === "car" ? "자가용(car)으로" : input.transport === "taxi" ? "기차(train) 또는 고속버스(express)로" : "기차(KTX·SRT 등 train) 또는 고속·시외버스(express)로"} 오가고, 도착역·터미널을 transit으로 넣으세요.`,
       `- 기간: ${input.days}일${input.days > 1 ? ` (${input.days - 1}박 ${input.days}일)` : " (당일치기)"}`,
       input.startDate ? `- 출발일: ${input.startDate} (계절/요일/휴무일을 고려하세요)` : "",
       input.party ? `- 동행: ${input.party}${input.people ? ` (총 ${input.people}명)` : ""}` : "",
