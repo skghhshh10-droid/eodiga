@@ -516,7 +516,7 @@ function saveToLocalStorage() {
 }
 
 // --- 공통 헬퍼 ---
-const TRANSPORT_LABELS = { auto: "알아서", transit: "대중교통", car: "자가용·렌터카", taxi: "택시", walk: "도보 위주" };
+const TRANSPORT_LABELS = { auto: "알아서", transit: "대중교통", car: "자가용", rental: "렌터카", taxi: "택시", walk: "도보 위주" };
 const MOVE_LABELS = { walk: "도보", bus: "버스", express: "고속·시외버스", subway: "지하철", train: "기차", car: "자가용", taxi: "택시", bike: "자전거", ferry: "배", flight: "비행기" };
 const MOVE_ICONS = { walk: "walk", bus: "bus", express: "bus", subway: "train", train: "train", car: "car", taxi: "taxi", bike: "bike", ferry: "ferry", flight: "flight" };
 const CATEGORY_LABELS = { sightseeing: "관광", restaurant: "맛집", cafe: "카페", shopping: "쇼핑", hotel: "숙소", transit: "이동" };
@@ -582,7 +582,7 @@ function isInKorea(lat, lng) {
 // 구글 지도 길찾기 이동 수단 (장소별 이동 방법 → 여행 이동 수단 순)
 function googleTravelMode(place, trip) {
   const m = (place.move && place.move.mode) || trip.transport || "auto";
-  const map = { car: "driving", taxi: "driving", walk: "walking", bike: "bicycling", bus: "transit", subway: "transit", train: "transit", transit: "transit" };
+  const map = { car: "driving", rental: "driving", taxi: "driving", walk: "walking", bike: "bicycling", bus: "transit", subway: "transit", train: "transit", transit: "transit" };
   return map[m] ? `&travelmode=${map[m]}` : "";
 }
 
@@ -1829,7 +1829,7 @@ function renderTripMeta() {
       <label class="trip-date-picker meta-item" title="출발일 지정">${window.icon("calendar", 16)}<input type="date" id="trip-start-date-input" value="${esc(t.startDate || "")}" aria-label="출발일"></label>
       <span class="meta-item">${range}${t.days}일</span>
       ${t.party ? `<span class="meta-item">${window.icon("users", 16)}${esc(t.party.split(",")[0])}</span>` : ""}
-      <label class="meta-item meta-transport" title="이동 수단">${window.icon(t.transport === "car" ? "car" : t.transport === "taxi" ? "taxi" : t.transport === "walk" ? "walk" : "bus", 16)}<select id="trip-transport-select" aria-label="이동 수단">
+      <label class="meta-item meta-transport" title="이동 수단">${window.icon(t.transport === "car" || t.transport === "rental" ? "car" : t.transport === "taxi" ? "taxi" : t.transport === "walk" ? "walk" : "bus", 16)}<select id="trip-transport-select" aria-label="이동 수단">
         ${Object.entries(TRANSPORT_LABELS).map(([k, v]) => `<option value="${k}" ${(t.transport || "auto") === k ? "selected" : ""}>${v}</option>`).join("")}
       </select></label>
     </div>
@@ -2111,6 +2111,21 @@ function setupBudgetModal() {
 async function changeTripTransport(value, opts = {}) {
   const t = state.activeTrip;
   if (!t) return;
+  // KTX·버스로 가는 일정에서 렌터카로 바꾸거나 렌터카를 그만두면 인수·반납 장소도 함께
+  if (!opts.fromLocal && t.intercity) {
+    if (value === "rental" && t.localMode !== "rental") return setLocalMode("rental");
+    if (value === "car") {
+      // 자가용은 집에서 바로 운전해 가므로 KTX·버스 구간과 역·렌터카 장소를 뺀다
+      t.places = t.places.filter(p => !p.intercity);
+      delete t.intercity;
+      t.localMode = null;
+      renderItineraryAll();
+    } else if (value !== "rental" && t.localMode === "rental") {
+      t.localMode = value === "taxi" ? "taxi" : value === "transit" ? "transit" : null;
+      t.places = t.places.filter(p => p.intercity !== "pick" && p.intercity !== "drop");
+      renderItineraryAll();
+    }
+  }
   const prev = t.transport || "auto";
   t.transport = value;
   persistActiveTrip();
@@ -2150,7 +2165,7 @@ function formatMinutes(m) {
 
 
 
-const APP_VERSION = "v36";
+const APP_VERSION = "v37";
 
 // --- 식성: 매운 음식·못 먹는 음식 ---
 const SPICY_RE = /개미집|낙곱새|엽기|배떡|청년다방|불타는|홍짜장|교동짬뽕|마라|훠궈|떡볶이|엽떡|짬뽕|닭발|쭈꾸미|주꾸미|낙지|매운|불닭|아구찜|아귀찜|해물찜|닭갈비|찜닭|김치찜|김치찌개|부대찌개|육개장|감자탕|탄탄|쓰촨|사천|똠얌|커리|카레|태국 음식|인도 음식|麻辣|火锅|辣|spicy|sichuan|szechuan|hot ?pot|curry|thai|indian/i;
@@ -2413,7 +2428,7 @@ function originCity(trip) {
 // 국내 내륙: 출발 도시 ↔ 목적지 기차·버스 예매 블록 (대중교통·알아서·택시일 때)
 function railBlockHtml(trip, day) {
   if (!trip || tripKind(trip) !== "inland") return "";
-  // 자가용·도보로 가는 여행이면 숨김 (단, KTX·버스로 가서 현지에서 렌터카를 쓰는 경우는 표시)
+  // 자가용으로 집에서 바로 가는 여행·도보 여행이면 숨김 (렌터카는 KTX·버스로 가서 빌리므로 표시)
   if (["car", "walk"].includes(trip.transport) && !trip.intercity) return "";
   const origin = originCity(trip);
   const dest = (trip.destination || "").split(/[\/,·]/)[0].trim();
@@ -2580,6 +2595,7 @@ function applyIntercity(mode) {
   if (nextAfterOut && nextAfterOut.move && ["train", "express", "flight"].includes(nextAfterOut.move.mode)) delete nextAfterOut.move;
   trip.intercity = { mode, stop: stopName, from: from ? from[0] : originCity(trip), service };
   ensureTripShape(trip);
+  if (!trip.localMode && trip.transport === "rental") trip.localMode = "rental";
   if (trip.localMode === "rental") {
     // 역·터미널이 바뀌었으니 렌터카 인수·반납 장소도 새 위치로
     const lm = trip.localMode; trip.localMode = null;
@@ -2616,7 +2632,7 @@ function markIntercityEdges(trip) {
 
 // --- 도착해서 현지 이동: 렌터카 / 버스 / 택시 ---
 const LOCAL_MODES = {
-  rental: { label: "렌터카", transport: "car", icon: "car" },
+  rental: { label: "렌터카", transport: "rental", icon: "car" },
   transit: { label: "버스·대중교통", transport: "transit", icon: "bus" },
   taxi: { label: "택시", transport: "taxi", icon: "taxi" }
 };
@@ -2654,15 +2670,18 @@ function setLocalMode(mode) {
   }
   renderItineraryAll();
   persistActiveTrip();
-  changeTripTransport(lm.transport, { label: lm.label });
+  changeTripTransport(lm.transport, { label: lm.label, fromLocal: true });
 }
 
 function rentalHint(trip) {
-  const pick = trip.places.find(p => p.intercity === "pick");
-  const drop = trip.places.find(p => p.intercity === "drop");
-  const d = (p) => { const dt = p && getTripDate(trip, p.day); return dt ? `${dt.getMonth() + 1}/${dt.getDate()} ` : ""; };
-  const t = (p) => p ? (parseTimeRange(p.time) ? minutesToHHMM(parseTimeRange(p.time)[0]) : "") : "";
-  return `${trip.intercity.stop} ${d(pick)}${t(pick)} 인수 ~ ${d(drop)}${t(drop)} 반납`;
+  const pick = trip.places.find(p => p.intercity === "pick") || trip.places.find(p => /렌터카 인수/.test(p.name));
+  const drop = trip.places.find(p => p.intercity === "drop") || trip.places.find(p => /렌터카 반납/.test(p.name));
+  const where = trip.intercity ? trip.intercity.stop
+    : pick ? pick.name.replace(/\s*렌터카 인수.*/, "")
+    : ((trip.places.find(isAirportPlace) || {}).name || (trip.destination || "").split(/[\/,·]/)[0]);
+  const d = (p, day) => { const dt = getTripDate(trip, p ? p.day : day); return dt ? `${dt.getMonth() + 1}/${dt.getDate()} ` : ""; };
+  const t = (p) => p && parseTimeRange(p.time) ? minutesToHHMM(parseTimeRange(p.time)[0]) : "";
+  return `${where} ${d(pick, 1)}${t(pick)} 인수 ~ ${d(drop, trip.days || 1)}${t(drop)} 반납`.replace(/\s+/g, " ");
 }
 
 async function openRentalSite(key) {
@@ -2677,7 +2696,7 @@ async function openRentalSite(key) {
 function localModeHtml(trip) {
   const ic = trip.intercity;
   if (!ic) return "";
-  const cur = trip.localMode || (trip.transport === "car" ? "rental" : trip.transport === "taxi" ? "taxi" : trip.transport === "transit" ? "transit" : "");
+  const cur = trip.localMode || (trip.transport === "rental" ? "rental" : trip.transport === "taxi" ? "taxi" : trip.transport === "transit" ? "transit" : "");
   return `
       <div class="ic-modes local-modes">
         <span>도착해서는요?</span>
@@ -2844,6 +2863,9 @@ function flightPanelHtml(ft, id) {
         <div class="stay-links">
           ${flightLinks(ft).map(l => `<button class="stay-link ${l.main ? "main" : ""}" data-action="flightsite" data-site="${l.key}" data-id="${id}"><b>${esc(l.label)}</b><small>${esc(l.sub)}</small></button>`).join("")}
         </div>
+        ${state.activeTrip && state.activeTrip.transport === "rental" ? `<div class="ic-modes local-modes"><span>렌터카 (도착 공항에서 인수)</span></div>
+        <div class="stay-links rental-links">${RENTAL_SITES.map(x => `<button class="stay-link" data-action="rentalsite" data-site="${x.k}"><b>${x.label}</b><small>${x.sub}</small></button>`).join("")}</div>
+        <div class="stay-hint">렌터카: ${esc(rentalHint(state.activeTrip))}</div>` : ""}
         ${bookedFlightsHtml(state.activeTrip)}
         <button class="btn btn-sm ff-open" data-action="flightfit" data-id="${id}">${window.icon("calendar", 16)}${state.activeTrip && state.activeTrip.flights ? "항공편 시간 고치기" : "예약한 항공편 시간 넣고 일정 맞추기"}</button>
         <div class="stay-hint">항공권 가격은 사이트에서 실시간으로 확인돼요. 수하물 포함 여부는 항공사마다 달라요.</div>
@@ -3231,7 +3253,7 @@ function hasCoords(p) {
 function naverRouteType(mode, trip) {
   if (mode && NAVER_ROUTE_TYPE[mode]) return NAVER_ROUTE_TYPE[mode];
   if (!mode && trip) {
-    if (trip.transport === "car" || trip.transport === "taxi") return "car";
+    if (["car", "rental", "taxi"].includes(trip.transport)) return "car";
     if (trip.transport === "walk") return "walk";
   }
   return "public";
