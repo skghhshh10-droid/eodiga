@@ -928,3 +928,5 @@ a.place-name-link:hover { text-decoration: underline; text-underline-offset: 3px
 .ff-open { margin-top: 10px; width: 100%; justify-content: center; display: inline-flex; align-items: center; gap: 6px; }
 .ff-booked { margin-top: 10px; font-size: var(--fs-sm); display: flex; flex-direction: column; gap: 2px; }
 #flight-fit-overlay .checklist-modal-header { padding: 18px 20px 4px; }
+.rail-block { flex-wrap: wrap; margin: 6px 0 10px; }
+.rail-panel { margin: 0 0 12px 18px; }
