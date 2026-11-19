@@ -953,3 +953,31 @@ a.place-name-link:hover { text-decoration: underline; text-underline-offset: 3px
 .chip-btn.chip-navi { color: #02a24a; border-color: rgba(3, 199, 90, 0.45); }
 .chip-btn.chip-navi .ic { color: #03c75a; }
 [data-theme="dark"] .chip-btn.chip-navi { color: #4ade80; }
+
+/* ---------- iOS 사파리: 날짜·시간 입력칸이 칸 밖으로 넘치는 문제 ---------- */
+/* iOS는 date/time 입력에 고유 최소 너비와 가운데 정렬을 줘서, flex·grid 칸을 뚫고 나간다 */
+.col, .form-row > *, .tpl-grid > *, .form-grid > * { min-width: 0; }
+input[type="date"], input[type="time"], input[type="datetime-local"] {
+  -webkit-appearance: none;
+  appearance: none;
+  display: block;
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
+  min-height: 48px;
+  text-align: left;
+  line-height: normal;
+  background-clip: padding-box;
+}
+input[type="date"]::-webkit-date-and-time-value,
+input[type="time"]::-webkit-date-and-time-value,
+input[type="datetime-local"]::-webkit-date-and-time-value {
+  text-align: left;
+  margin: 0;
+  min-height: 1.4em;
+}
+input[type="date"]::-webkit-calendar-picker-indicator,
+input[type="time"]::-webkit-calendar-picker-indicator { margin-left: auto; }
+/* select도 iOS에서 화살표 영역 때문에 넘치지 않게 */
+.form-row select, .tpl-grid select { min-width: 0; width: 100%; max-width: 100%; box-sizing: border-box; }
