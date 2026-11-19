@@ -930,3 +930,7 @@ a.place-name-link:hover { text-decoration: underline; text-underline-offset: 3px
 #flight-fit-overlay .checklist-modal-header { padding: 18px 20px 4px; }
 .rail-block { flex-wrap: wrap; margin: 6px 0 10px; }
 .rail-panel { margin: 0 0 12px 18px; }
+.ic-modes { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; margin-bottom: 10px; }
+.ic-modes span { font-size: var(--fs-sm); font-weight: 700; margin-right: 4px; }
+.ic-modes .seg-btn { border: 1px solid var(--border-color, rgba(0,0,0,0.12)); background: var(--surface, #fff); }
+.ic-modes .seg-btn.on { border-color: var(--primary-solid); color: var(--primary-solid); background: rgba(99,102,241,0.08); }
