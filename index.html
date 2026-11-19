@@ -481,15 +481,20 @@
   <div id="flight-fit-overlay" class="modal-overlay">
     <div class="place-edit-modal">
       <div class="checklist-modal-header">
-        <h3>예약한 항공편 시간</h3>
+        <h3 id="ff-heading">예약한 항공편 시간</h3>
         <button class="btn-close-modal" id="btn-close-flight-fit" aria-label="닫기">✕</button>
       </div>
       <div class="place-edit-body">
-        <p class="budget-help">고른 항공편의 시간을 넣으면 첫날은 도착 뒤부터, 마지막 날은 공항에 늦지 않게 일정을 AI가 다시 짜요. 시간은 모두 <b>현지 시각</b>이에요.</p>
+        <p class="budget-help" id="ff-help">고른 항공편의 시간을 넣으면 첫날은 도착 뒤부터, 마지막 날은 공항에 늦지 않게 일정을 AI가 다시 짜요. 시간은 모두 <b>현지 시각</b>이에요.</p>
+        <div class="ff-mode">
+          <button type="button" class="seg-btn on" id="ff-mode-manual">직접 입력</button>
+          <button type="button" class="seg-btn" id="ff-mode-auto">자동으로 정하기</button>
+          <small id="ff-auto-note"></small>
+        </div>
         <div class="ff-leg" id="ff-out">
           <div class="ff-title" id="ff-out-title">가는 편</div>
           <div class="tpl-grid">
-            <div class="form-group"><label for="ff-out-no">편명 (선택)</label><input type="text" id="ff-out-no" placeholder="예: 7C1301" maxlength="10" autocomplete="off"></div>
+            <div class="form-group"><label for="ff-out-no" class="ff-no-label">편명 (선택)</label><input type="text" id="ff-out-no" placeholder="예: 7C1301" maxlength="10" autocomplete="off"></div>
             <div class="form-group"><label for="ff-out-dep">출발</label><input type="time" id="ff-out-dep"></div>
             <div class="form-group"><label for="ff-out-arr">도착</label><input type="time" id="ff-out-arr"></div>
           </div>
@@ -497,7 +502,7 @@
         <div class="ff-leg" id="ff-ret">
           <div class="ff-title" id="ff-ret-title">오는 편</div>
           <div class="tpl-grid">
-            <div class="form-group"><label for="ff-ret-no">편명 (선택)</label><input type="text" id="ff-ret-no" placeholder="예: 7C1302" maxlength="10" autocomplete="off"></div>
+            <div class="form-group"><label for="ff-ret-no" class="ff-no-label">편명 (선택)</label><input type="text" id="ff-ret-no" placeholder="예: 7C1302" maxlength="10" autocomplete="off"></div>
             <div class="form-group"><label for="ff-ret-dep">출발</label><input type="time" id="ff-ret-dep"></div>
             <div class="form-group"><label for="ff-ret-arr">도착</label><input type="time" id="ff-ret-arr"></div>
           </div>
