@@ -950,3 +950,6 @@ a.place-name-link:hover { text-decoration: underline; text-underline-offset: 3px
 [data-theme="dark"] .wake-chip { background: rgba(255,255,255,0.06); }
 .chip-btn.chip-remove { color: var(--text-muted); }
 .edit-mode-active .chip-remove { display: none; }
+.chip-btn.chip-navi { color: #02a24a; border-color: rgba(3, 199, 90, 0.45); }
+.chip-btn.chip-navi .ic { color: #03c75a; }
+[data-theme="dark"] .chip-btn.chip-navi { color: #4ade80; }
