@@ -464,7 +464,7 @@ function withUndo(message, mutate) {
   mutate();
   renderItineraryAll();
   persistActiveTrip();
-  showToast(message, 6000, {
+  showToast(typeof message === "function" ? message() : message, 6000, {
     label: "되돌리기",
     onClick: () => {
       state.activeTrip = before;
@@ -1733,9 +1733,46 @@ function deletePlaceById(placeId) {
   const place = state.activeTrip.places.find(p => p.id === placeId);
   if (!place) return;
   if (window.closeSeniorDetailModal) window.closeSeniorDetailModal();
-  withUndo(`"${place.name}"을(를) 삭제했습니다.`, () => {
+  let note = "";
+  withUndo(() => `"${place.name}"을(를) 뺐어요.${note ? " " + note : ""}`, () => {
+    note = redistributeAfterRemoval(state.activeTrip, place);
     state.activeTrip.places.splice(state.activeTrip.places.indexOf(place), 1);
   });
+}
+
+// 뺀 일정의 시간을 앞뒤 일정에 나눠 주기 (앞은 더 머물고, 뒤는 일찍 시작)
+function redistributeAfterRemoval(trip, place) {
+  const dayPlaces = trip.places.filter(p => p.day === place.day);
+  const idx = dayPlaces.indexOf(place);
+  const r = parseTimeRange(place.time);
+  if (idx < 0 || !r) return "";
+  const prev = dayPlaces[idx - 1], next = dayPlaces[idx + 1];
+  const hasRange = p => p && ((p.time || "").match(/\d{1,2}:\d{2}/g) || []).length > 1;
+  const flex = p => p && hasRange(p) && !["transit", "hotel"].includes(p.category) && !p.intercity;
+  const prevR = prev && parseTimeRange(prev.time), nextR = next && parseTimeRange(next.time);
+  const start = prevR ? prevR[1] : r[0];
+  const end = nextR ? nextR[0] : r[1];
+  const travel = prev && next ? 20 : 0; // 앞→뒤 장소로 바로 이동하는 시간
+  let free = end - start - travel;
+  if (free <= 0) return "";
+  const CAP = 90; // 한 장소에 최대 1시간 30분까지만 늘리기
+  let addPrev = 0, addNext = 0;
+  if (flex(prev) && flex(next)) { addPrev = Math.min(CAP, Math.round(free / 2 / 5) * 5); addNext = Math.min(CAP, free - addPrev); }
+  else if (flex(prev)) addPrev = Math.min(CAP, free);
+  else if (flex(next)) addNext = Math.min(CAP, free);
+  const parts = [];
+  if (addPrev > 0) {
+    prev.time = `${minutesToHHMM(prevR[0])} - ${minutesToHHMM(prevR[1] + addPrev)}`;
+    parts.push(`앞 '${prev.name}' ${formatMinutes(addPrev)} 더 머물고`);
+  }
+  if (addNext > 0) {
+    next.time = `${minutesToHHMM(nextR[0] - addNext)} - ${minutesToHHMM(nextR[1])}`;
+    parts.push(`뒤 '${next.name}'은 ${formatMinutes(addNext)} 일찍 시작해요`);
+  }
+  // 뒤 장소의 이동 정보는 뺀 장소에서 오는 기준이라 지우고 길찾기로 확인
+  if (next && next.move && !["flight", "train", "express", "ferry"].includes(next.move.mode)) delete next.move;
+  const left = free - addPrev - addNext;
+  return parts.join(", ") + (parts.length ? "." : "") + (left >= 30 ? ` ${formatMinutes(left)}은 자유 시간으로 남겨 뒀어요.` : "");
 }
 
 // 타임라인 / 상세 모달 버튼 공통 처리
@@ -1795,7 +1832,7 @@ function setupPlaceActionDelegation() {
     else if (action === "edit") openPlaceEdit(id);
     else if (action === "up") movePlace(id, -1);
     else if (action === "down") movePlace(id, 1);
-    else if (action === "delete") {
+    else if (action === "delete" || action === "remove") {
       deletePlaceById(id);
     }
     else if (action === "delay") askDelay(id);
@@ -2185,7 +2222,7 @@ function formatMinutes(m) {
 
 
 
-const APP_VERSION = "v39";
+const APP_VERSION = "v40";
 
 // --- 식성: 매운 음식·못 먹는 음식 ---
 const SPICY_RE = /개미집|낙곱새|엽기|배떡|청년다방|불타는|홍짜장|교동짬뽕|마라|훠궈|떡볶이|엽떡|짬뽕|닭발|쭈꾸미|주꾸미|낙지|매운|불닭|아구찜|아귀찜|해물찜|닭갈비|찜닭|김치찜|김치찌개|부대찌개|육개장|감자탕|탄탄|쓰촨|사천|똠얌|커리|카레|태국 음식|인도 음식|麻辣|火锅|辣|spicy|sichuan|szechuan|hot ?pot|curry|thai|indian/i;
@@ -4548,6 +4585,7 @@ function renderTimeline() {
           <button class="chip-btn chip-primary" data-action="map" data-id="${id}">${window.icon("map", 16)}지도</button>
           ${isTransit ? "" : `<button class="chip-btn" data-action="search" data-id="${id}">${window.icon("search", 16)}${searchLabel}</button>`}
           <button class="chip-btn" data-action="edit" data-id="${id}">${window.icon("pencil", 16)}편집</button>
+          ${place.intercity ? "" : `<button class="chip-btn chip-remove" data-action="remove" data-id="${id}">${window.icon("trash", 16)}빼기</button>`}
           ${altChipHtml(place)}
           ${topChipHtml(place)}
           ${isAirportPlace(place) && needsFlight(state.activeTrip) && !(place.move && place.move.mode === "flight") && synthFlightTrip(state.activeTrip, place) ? `<button class="chip-btn chip-flight ${expandedFlights.has(place.id) ? "on" : ""}" data-action="flights" data-id="${id}">${window.icon("flight", 16)}${expandedFlights.has(place.id) ? "접기" : "항공권 찾기"}</button>` : ""}
