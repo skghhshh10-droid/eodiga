@@ -941,3 +941,10 @@ a.place-name-link:hover { text-decoration: underline; text-underline-offset: 3px
 .local-modes { padding-top: 8px; border-top: 1px dashed var(--border-color, rgba(0,0,0,0.12)); margin-top: 10px; }
 .rental-links { margin-bottom: 4px; }
 .drive-grid { margin-bottom: 4px; }
+.day-summary-line { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.wake-chip { margin-left: auto; border: 1px solid var(--border-color, rgba(0,0,0,0.12)); background: var(--surface, #fff); color: var(--text-color, inherit); border-radius: 999px; padding: 4px 12px; min-height: 32px; font: inherit; font-size: var(--fs-xs); font-weight: 700; cursor: pointer; }
+.wake-chip:active { transform: scale(0.97); }
+.wake-presets { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
+.wake-presets .seg-btn { border: 1px solid var(--border-color, rgba(0,0,0,0.12)); background: var(--surface, #fff); }
+#wake-overlay .checklist-modal-header { padding: 18px 20px 4px; }
+[data-theme="dark"] .wake-chip { background: rgba(255,255,255,0.06); }
