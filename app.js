@@ -2027,7 +2027,7 @@ function formatMinutes(m) {
 
 
 
-const APP_VERSION = "v22";
+const APP_VERSION = "v23";
 
 // --- 식성: 매운 음식·못 먹는 음식 ---
 const SPICY_RE = /개미집|낙곱새|엽기|배떡|청년다방|불타는|홍짜장|교동짬뽕|마라|훠궈|떡볶이|엽떡|짬뽕|닭발|쭈꾸미|주꾸미|낙지|매운|불닭|아구찜|아귀찜|해물찜|닭갈비|찜닭|김치찜|김치찌개|부대찌개|육개장|감자탕|탄탄|쓰촨|사천|똠얌|커리|카레|태국 음식|인도 음식|麻辣|火锅|辣|spicy|sichuan|szechuan|hot ?pot|curry|thai|indian/i;
@@ -2122,8 +2122,11 @@ function stayLinks(place, info) {
     { key: "google", label: "가격 비교", sub: "Google 호텔", url: `https://www.google.com/travel/search?q=${enc(info.area + " 호텔")}&hl=ko&gl=kr&curr=KRW` }
   ];
   if (info.domestic) {
-    links.push({ key: "yanolja", label: "야놀자", sub: "국내 숙소", url: "https://www.yanolja.com/", copy: true });
-    links.push({ key: "goodchoice", label: "여기어때", sub: "국내 숙소", url: "https://www.yeogi.com/", copy: true });
+    // 여기어때: 지역·날짜·인원·낮은가격순까지 주소로 채워짐 (2026-11 확인)
+    const yeogiDates = info.checkin ? `&checkIn=${ymd(info.checkin)}&checkOut=${ymd(info.checkout)}` : "";
+    links.push({ key: "goodchoice", label: "여기어때", sub: "낮은 가격순", url: `https://www.yeogi.com/domestic-accommodations?keyword=${enc(info.area)}${yeogiDates}&personal=${info.people}&sortType=LOWPRICE` });
+    // 야놀자(NOL): 지역·낮은 가격순만 주소로 가능, 날짜·인원은 화면에서 선택
+    links.push({ key: "yanolja", label: "야놀자", sub: "낮은 가격순 · 날짜는 직접", url: `https://nol.yanolja.com/discovery/list/search/PRODUCT_CATEGORY_KOREA_ACCOMMODATION?q=${enc(info.area)}&sort=SORT_PRICE_ASC`, copy: !!info.checkin });
   } else {
     links.push({ key: "agoda", label: "아고다", sub: "해외 숙소", url: `https://www.agoda.com/ko-kr/search?textToSearch=${enc(info.area)}${info.checkin ? `&checkIn=${ymd(info.checkin)}&los=${info.nights}` : ""}&adults=${info.people}&rooms=${info.rooms}&sort=priceLowToHigh`, copy: true });
   }
@@ -2141,7 +2144,7 @@ function stayPanelHtml(place) {
   return `
     <div class="stay-panel">
       <div class="stay-head"><strong>${when} · ${info.people}명${info.rooms > 1 ? ` · 객실 ${info.rooms}개` : ""}</strong><span>${est}</span></div>
-      ${info.checkin ? "" : `<div class="stay-hint">여행 시작일을 정하면 날짜까지 채워서 열려요.</div>`}
+      ${info.checkin ? "" : `<div class="stay-hint warn">여행 시작일이 없어 날짜 없이 열려요. 위쪽 날짜 칸에서 출발일을 정하면 체크인·체크아웃까지 채워져요.</div>`}
       <div class="stay-links">
         ${links.map(l => `<button class="stay-link ${l.main ? "main" : ""}" data-action="staysite" data-site="${l.key}" data-id="${id}"><b>${esc(l.label)}</b><small>${esc(l.sub)}</small></button>`).join("")}
       </div>
@@ -2157,7 +2160,9 @@ async function openStaySite(place, key) {
   if (link.copy) {
     const when = info.checkin ? ` ${info.checkin.getMonth() + 1}/${info.checkin.getDate()}~${info.checkout.getMonth() + 1}/${info.checkout.getDate()}` : "";
     try { if (navigator.clipboard) await navigator.clipboard.writeText(info.area); } catch (e) {}
-    showToast(`${link.label}에서 '${info.area}'${when}, ${info.people}명으로 검색한 뒤 '낮은 가격순'으로 정렬하세요.`, 6000);
+    showToast(link.key === "yanolja"
+      ? `야놀자 화면 위쪽에서 날짜를${when}, 인원을 ${info.people}명으로 바꿔 주세요.`
+      : `${link.label}에서 '${info.area}'${when}, ${info.people}명으로 검색한 뒤 '낮은 가격순'으로 정렬하세요.`, 6000);
   }
 }
 

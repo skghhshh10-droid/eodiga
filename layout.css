@@ -897,3 +897,4 @@ input, select, textarea {
 .diet-toggle.on { border-color: #ef4444; background: rgba(239, 68, 68, 0.1); color: #b91c1c; }
 [data-theme="dark"] .diet-toggle { background: rgba(255,255,255,0.05); }
 [data-theme="dark"] .diet-toggle.on { color: #fca5a5; }
+.stay-hint.warn { color: #b45309; font-weight: 600; margin: 0 0 8px; }
