@@ -1847,6 +1847,7 @@ function setupTripMenu() {
     else if (act === "calendar") downloadCalendarIcs();
     else if (act === "checklist") openChecklistModal();
     else if (act === "print") openPdfPreview();
+    else if (act === "flights") openTripFlights();
     else if (act === "top1") {
       if (!window.RoutyAI.hasPlacesKey()) showToast("Google Places 키가 없어 쓸 수 없어요.", 4000);
       else autoPickTop(state.activeTrip, { force: true });
@@ -2035,7 +2036,7 @@ function formatMinutes(m) {
 
 
 
-const APP_VERSION = "v28";
+const APP_VERSION = "v29";
 
 // --- 식성: 매운 음식·못 먹는 음식 ---
 const SPICY_RE = /개미집|낙곱새|엽기|배떡|청년다방|불타는|홍짜장|교동짬뽕|마라|훠궈|떡볶이|엽떡|짬뽕|닭발|쭈꾸미|주꾸미|낙지|매운|불닭|아구찜|아귀찜|해물찜|닭갈비|찜닭|김치찜|김치찌개|부대찌개|육개장|감자탕|탄탄|쓰촨|사천|똠얌|커리|카레|태국 음식|인도 음식|麻辣|火锅|辣|spicy|sichuan|szechuan|hot ?pot|curry|thai|indian/i;
@@ -2279,6 +2280,41 @@ const AIRPORT_CODES = {
   "광주": "KWJ", "무안": "MWX", "여수": "RSU", "양양": "YNY", "울산": "USN", "포항": "KPO", "사천": "HIN", "군산": "KUV", "원주": "WJU"
 };
 const KOREA_CODES = new Set(Object.values(AIRPORT_CODES));
+// 해외 공항·도시 이름 → 코드 (템플릿·예전 일정처럼 코드가 없을 때 추정용)
+const WORLD_AIRPORTS = [
+  [/간사이|오사카|교토|고베|나라/, "KIX"], [/나리타/, "NRT"], [/하네다|도쿄/, "HND"], [/후쿠오카|규슈/, "FUK"],
+  [/신치토세|삿포로|홋카이도/, "CTS"], [/나하|오키나와/, "OKA"], [/주부|나고야/, "NGO"], [/마쓰야마/, "MYJ"], [/시즈오카/, "FSZ"],
+  [/쑹산|송산/, "TSA"], [/타오위안|타이베이|대만/, "TPE"], [/가오슝/, "KHH"], [/홍콩/, "HKG"], [/마카오/, "MFM"],
+  [/돈므앙/, "DMK"], [/수완나품|방콕/, "BKK"], [/치앙마이/, "CNX"], [/푸껫|푸켓/, "HKT"],
+  [/다낭/, "DAD"], [/깜라인|나트랑|냐짱/, "CXR"], [/하노이/, "HAN"], [/호치민|호찌민/, "SGN"], [/푸꾸옥/, "PQC"],
+  [/세부/, "CEB"], [/보홀/, "TAG"], [/마닐라/, "MNL"], [/창이|싱가포르/, "SIN"], [/코타키나발루/, "BKI"], [/쿠알라룸푸르/, "KUL"],
+  [/발리|덴파사르/, "DPS"], [/괌/, "GUM"], [/사이판/, "SPN"], [/푸동|상하이/, "PVG"], [/베이징/, "PEK"], [/칭다오/, "TAO"],
+  [/울란바토르|몽골/, "UBN"], [/호놀룰루|하와이/, "HNL"], [/시드니/, "SYD"], [/샤를|파리/, "CDG"], [/히드로|런던/, "LHR"],
+  [/로마/, "FCO"], [/바르셀로나/, "BCN"], [/프랑크푸르트/, "FRA"], [/뉴욕|JFK/, "JFK"], [/로스앤젤레스|LA\b/, "LAX"],
+  [/샌프란시스코/, "SFO"], [/밴쿠버/, "YVR"], [/두바이/, "DXB"], [/이스탄불/, "IST"]
+];
+const ORIGIN_CODES = { "서울": "ICN", "인천": "ICN", "김포": "GMP", "부산": "PUS", "대구": "TAE", "청주": "CJJ", "광주": "KWJ", "제주": "CJU", "무안": "MWX", "양양": "YNY" };
+
+function isAirportPlace(p) {
+  return p && p.category === "transit" && /공항|airport/i.test(p.name || "");
+}
+
+function guessAirport(text) {
+  const t = String(text || "");
+  const code = airportCode(t);
+  if (code) return code;
+  const hit = WORLD_AIRPORTS.find(([re]) => re.test(t));
+  return hit ? hit[1] : "";
+}
+
+function originAirport(trip, toCode) {
+  const o = trip.origin || (() => { try { return localStorage.getItem("routy_origin"); } catch (e) { return ""; } })() || "서울";
+  const key = Object.keys(ORIGIN_CODES).find(k => o.includes(k));
+  let code = key ? ORIGIN_CODES[key] : (airportCode(o) || "ICN");
+  // 국내선(예: 서울→제주)은 김포 출발
+  if (code === "ICN" && KOREA_CODES.has(toCode)) code = "GMP";
+  return code;
+}
 
 function rememberOrigin(v) {
   try {
@@ -2317,11 +2353,27 @@ function flightLegs(trip) {
 function flightTrip(trip, place) {
   const legs = flightLegs(trip);
   const leg = legs.find(l => l.place === place);
-  if (!leg) return null;
+  if (!leg) return synthFlightTrip(trip, place);
   const back = legs.find(l => l !== leg && l.from === leg.to && l.to === leg.from);
   const out = back && back.day < leg.day ? back : leg;
   const ret = back ? (out === leg ? back : leg) : null;
   return { out, ret, people: Math.max(1, parseInt(trip.people, 10) || 1) };
+}
+
+// 비행 구간 정보가 없는 일정(템플릿·예전 일정): 출발 도시 ↔ 목적지 공항으로 첫날 가고 마지막 날 오는 왕복을 만든다
+function synthFlightTrip(trip, place) {
+  const airportPlace = place && isAirportPlace(place) ? place : trip.places.find(isAirportPlace);
+  const dest = guessAirport(airportPlace && airportPlace.name) || guessAirport(trip.destination);
+  if (!dest) return null;
+  const from = originAirport(trip, dest);
+  if (from === dest) return null;
+  const lastDay = trip.days || Math.max(...trip.places.map(p => p.day || 1));
+  return {
+    out: { from, to: dest, day: 1, date: getTripDate(trip, 1) },
+    ret: lastDay > 1 ? { from: dest, to: from, day: lastDay, date: getTripDate(trip, lastDay) } : null,
+    people: Math.max(1, parseInt(trip.people, 10) || 1),
+    guessed: true
+  };
 }
 
 function yymmdd(d) { return ymd(d).slice(2).replace(/-/g, ""); }
@@ -2359,22 +2411,43 @@ function flightConnectorHtml(move, to) {
   const ft = state.activeTrip ? flightTrip(state.activeTrip, to) : null;
   const open = expandedFlights.has(to.id);
   const btn = ft ? `<button class="move-ticket" data-action="flights" data-id="${id}">${window.icon("flight", 14)}${open ? "접기" : "항공권 찾기"}</button>` : "";
-  let panel = "";
-  if (ft && open) {
-    const { out, ret, people } = ft;
-    const d = x => x.date ? `${x.date.getMonth() + 1}/${x.date.getDate()}` : "날짜 미정";
-    const head = `${ret ? "왕복" : "편도"} · 가는 날 ${d(out)}${ret ? ` · 오는 날 ${d(ret)}` : ""} · ${people}명`;
-    panel = `
+  const panel = ft && open ? flightPanelHtml(ft, id) : "";
+  return `<div class="move-connector move-flight">${window.icon("flight", 15)}<span class="move-main">비행기${mins}${cost}</span><span class="move-leg">${esc(from)} → ${esc(dest)}${codes}</span>${btn}</div>${panel}`;
+}
+
+function flightPanelHtml(ft, id) {
+  const { out, ret, people } = ft;
+  const d = x => x.date ? `${x.date.getMonth() + 1}/${x.date.getDate()}` : "날짜 미정";
+  const head = `${ret ? "왕복" : "편도"} · 가는 날 ${d(out)}${ret ? ` · 오는 날 ${d(ret)}` : ""} · ${people}명`;
+  return `
       <div class="stay-panel flight-panel">
         <div class="stay-head"><strong>${out.from} → ${out.to}${ret ? ` → ${ret.to}` : ""}</strong><span>${head}</span></div>
+        ${ft.guessed ? `<div class="stay-hint">출발 도시와 여행 날짜로 첫날 가는 편·마지막 날 오는 편을 잡았어요. 공항이 다르면 사이트에서 바꿔 주세요.</div>` : ""}
         ${out.date ? "" : `<div class="stay-hint warn">여행 시작일이 없어 날짜 없이 열려요. 위쪽 날짜 칸에서 출발일을 정하면 날짜까지 채워져요.</div>`}
         <div class="stay-links">
           ${flightLinks(ft).map(l => `<button class="stay-link ${l.main ? "main" : ""}" data-action="flightsite" data-site="${l.key}" data-id="${id}"><b>${esc(l.label)}</b><small>${esc(l.sub)}</small></button>`).join("")}
         </div>
         <div class="stay-hint">항공권 가격은 사이트에서 실시간으로 확인돼요. 수하물 포함 여부는 항공사마다 달라요.</div>
       </div>`;
+}
+
+// ⋯ 메뉴: 일정 전체 기준 항공권 찾기 (비행 구간이나 공항 카드로 이동해 패널 펼치기)
+function openTripFlights() {
+  const trip = state.activeTrip;
+  const leg = flightLegs(trip)[0];
+  const target = leg ? leg.place : trip.places.find(isAirportPlace);
+  if (!target && !synthFlightTrip(trip, null)) {
+    showToast("목적지 공항을 알 수 없어요. 국내 기차·버스 여행이면 이동 칸의 예매 버튼을 써 주세요.", 4500);
+    return;
   }
-  return `<div class="move-connector move-flight">${window.icon("flight", 15)}<span class="move-main">비행기${mins}${cost}</span><span class="move-leg">${esc(from)} → ${esc(dest)}${codes}</span>${btn}</div>${panel}`;
+  if (target) {
+    expandedFlights.add(target.id);
+    if (state.activeTripDay !== target.day) { state.activeTripDay = target.day; renderItineraryAll(); } else renderTimeline();
+    setTimeout(() => document.querySelector(".flight-panel")?.scrollIntoView({ block: "center", behavior: "smooth" }), 100);
+  } else {
+    const ft = synthFlightTrip(trip, null);
+    window.open(flightLinks(ft)[0].url, "_blank", "noopener");
+  }
 }
 
 function openFlightSite(place, key) {
@@ -3434,6 +3507,7 @@ function renderTimeline() {
           <button class="chip-btn" data-action="edit" data-id="${id}">${window.icon("pencil", 16)}편집</button>
           ${altChipHtml(place)}
           ${topChipHtml(place)}
+          ${isAirportPlace(place) && !(place.move && place.move.mode === "flight") && synthFlightTrip(state.activeTrip, place) ? `<button class="chip-btn chip-flight ${expandedFlights.has(place.id) ? "on" : ""}" data-action="flights" data-id="${id}">${window.icon("flight", 16)}${expandedFlights.has(place.id) ? "접기" : "항공권 찾기"}</button>` : ""}
           ${place.category === "hotel" ? `<button class="chip-btn chip-stay ${expandedStays.has(place.id) ? "on" : ""}" data-action="stays" data-id="${esc(place.id)}">${window.icon("wallet", 16)}${expandedStays.has(place.id) ? "접기" : "최저가 숙소"}</button>` : ""}
           <span class="edit-only-actions">
             <button class="chip-btn chip-icon" data-action="up" data-id="${id}" ${index === 0 ? "disabled" : ""} aria-label="위로">${window.icon("up", 18)}</button>
@@ -3444,6 +3518,7 @@ function renderTimeline() {
         ${expandedAlts.has(place.id) ? altListHtml(place) : ""}
         ${topPanel.placeId === place.id ? topPanelHtml(place) : ""}
         ${expandedStays.has(place.id) ? stayPanelHtml(place) : ""}
+        ${isAirportPlace(place) && !(place.move && place.move.mode === "flight") && expandedFlights.has(place.id) && synthFlightTrip(state.activeTrip, place) ? flightPanelHtml(synthFlightTrip(state.activeTrip, place), esc(place.id)) : ""}
       `;
     }
 
