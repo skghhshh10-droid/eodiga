@@ -728,6 +728,8 @@ function renderSettingsTab() {
   document.getElementById("setting-kakao-key").value = s.kakaoKey || "";
   document.getElementById("setting-naver-key").value = s.naverKey || "";
   document.getElementById("setting-places-key").value = s.placesKey || "";
+  const ver = document.getElementById("app-version");
+  if (ver) ver.textContent = APP_VERSION;
   document.getElementById("setting-places-sort").value = s.placesSort || "rating";
   document.getElementById("places-limit").textContent = window.RoutyAI.PLACES_DAILY_LIMIT;
   document.getElementById("places-usage").textContent = s.placesKey ? `(오늘 ${window.RoutyAI.placesUsage().n}회 사용)` : "";
@@ -1833,6 +1835,10 @@ function setupTripMenu() {
     else if (act === "calendar") downloadCalendarIcs();
     else if (act === "checklist") openChecklistModal();
     else if (act === "print") openPdfPreview();
+    else if (act === "top1") {
+      if (!window.RoutyAI.hasPlacesKey()) showToast("Google Places 키가 없어 쓸 수 없어요.", 4000);
+      else autoPickTop(state.activeTrip, { force: true });
+    }
     else if (act === "delete-day") deleteActiveDay();
     else if (act === "edit") {
       state.editMode = !state.editMode;
@@ -2015,6 +2021,8 @@ function formatMinutes(m) {
 }
 
 
+
+const APP_VERSION = "v21";
 
 // --- 식성: 매운 음식·못 먹는 음식 ---
 const SPICY_RE = /개미집|낙곱새|엽기|배떡|청년다방|불타는|홍짜장|교동짬뽕|마라|훠궈|떡볶이|엽떡|짬뽕|닭발|쭈꾸미|주꾸미|낙지|매운|불닭|아구찜|아귀찜|해물찜|닭갈비|찜닭|김치찜|김치찌개|부대찌개|육개장|감자탕|탄탄|쓰촨|사천|똠얌|커리|카레|태국 음식|인도 음식|麻辣|火锅|辣|spicy|sichuan|szechuan|hot ?pot|curry|thai|indian/i;
@@ -2418,21 +2426,25 @@ function budgetFit(items, budget) {
 
 // 일정 생성 직후: 식당·카페를 주변 Google 1위로 자동 교체 (원래 식당은 후보로)
 const autoTopRunning = new Set();
-async function autoPickTop(trip) {
-  if (!window.RoutyAI.hasPlacesKey() || !trip || trip.source !== "ai") return;
+async function autoPickTop(trip, opts = {}) {
+  if (!window.RoutyAI.hasPlacesKey() || !trip) return;
+  if (!opts.force && trip.source !== "ai") return;
   if (autoTopRunning.has(trip.id)) return;
   autoTopRunning.add(trip.id);
   try {
-    await autoPickTopInner(trip);
+    await autoPickTopInner(trip, opts);
   } finally {
     autoTopRunning.delete(trip.id);
   }
 }
 
-async function autoPickTopInner(trip) {
+async function autoPickTopInner(trip, opts = {}) {
   const sort = window.RoutyAI.getSettings().placesSort;
-  const targets = trip.places.filter(p => ["restaurant", "cafe"].includes(p.category) && !p.googlePlaceId && !p.autoTopTried && hasCoords(p));
-  if (!targets.length) return;
+  const targets = trip.places.filter(p => ["restaurant", "cafe"].includes(p.category) && !p.googlePlaceId && (opts.force || !p.autoTopTried) && hasCoords(p));
+  if (!targets.length) {
+    if (opts.force) showToast("바꿀 식당이 없어요. 이미 모두 Google에서 고른 곳이에요.", 4000);
+    return;
+  }
   const used = new Set(trip.places.filter(p => p.googlePlaceId).map(p => p.googlePlaceId));
   let picked = 0, stopped = "";
   renderAutoTopStatus(`Google ${sort === "count" ? "리뷰수" : "별점"} 1위 식당 찾는 중… 0/${targets.length}`);
@@ -2442,13 +2454,13 @@ async function autoPickTopInner(trip) {
     const type = place.category === "cafe" ? "cafe" : "restaurant";
     const center = { lat: place.lat, lng: place.lng };
     const cacheKey = `${center.lat.toFixed(4)},${center.lng.toFixed(4)},${type}`;
-    place.autoTopTried = true;
     try {
       let items = topCache.get(cacheKey);
       if (!items) {
         items = await window.RoutyAI.placesNearby(center.lat, center.lng, { type });
         topCache.set(cacheKey, items);
       }
+      place.autoTopTried = true; // 조회에 성공했을 때만 표시 (실패하면 다음에 다시 시도)
       // 식성에 안 맞는 곳은 1위 후보에서 빼고, 남는 곳이 없으면 AI가 고른 식당을 그대로 둔다
       const ranked = rankTopItems(budgetFit(items, trip.budget).filter(it => !dietConflict(it)), sort);
       const best = ranked.find(it => !used.has(it.id));
@@ -2469,6 +2481,7 @@ async function autoPickTopInner(trip) {
     renderItineraryAll();
     persistActiveTrip();
   }
+  if (opts.force && !picked && !stopped) showToast("주변에서 조건(식성·가격대)에 맞는 곳을 찾지 못해 그대로 뒀어요.", 5000);
   if (picked) showToast(`식당 ${picked}곳을 Google ${sort === "count" ? "리뷰수" : "별점"} 1위로 골랐어요. 'TOP 5'에서 바꿀 수 있어요.`, 5000);
   else if (stopped) showToast(`Google 식당 조회를 못 했어요: ${stopped}`, 5000);
 }
