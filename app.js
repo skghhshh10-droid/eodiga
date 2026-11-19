@@ -200,7 +200,12 @@ document.addEventListener("DOMContentLoaded", () => {
 
   // PWA: 오프라인 캐시
   if ("serviceWorker" in navigator && location.protocol !== "file:") {
-    navigator.serviceWorker.register("sw.js").catch(err => console.warn("SW 등록 실패", err));
+    navigator.serviceWorker.register("sw.js", { updateViaCache: "none" })
+      .then(reg => {
+        // 앱을 다시 열거나 화면에 돌아올 때마다 새 버전 확인
+        document.addEventListener("visibilitychange", () => { if (!document.hidden) reg.update().catch(() => {}); });
+      })
+      .catch(err => console.warn("SW 등록 실패", err));
   }
 
   // Window resize handler to invalidate map sizes during responsive transition
@@ -2022,7 +2027,7 @@ function formatMinutes(m) {
 
 
 
-const APP_VERSION = "v21";
+const APP_VERSION = "v22";
 
 // --- 식성: 매운 음식·못 먹는 음식 ---
 const SPICY_RE = /개미집|낙곱새|엽기|배떡|청년다방|불타는|홍짜장|교동짬뽕|마라|훠궈|떡볶이|엽떡|짬뽕|닭발|쭈꾸미|주꾸미|낙지|매운|불닭|아구찜|아귀찜|해물찜|닭갈비|찜닭|김치찜|김치찌개|부대찌개|육개장|감자탕|탄탄|쓰촨|사천|똠얌|커리|카레|태국 음식|인도 음식|麻辣|火锅|辣|spicy|sichuan|szechuan|hot ?pot|curry|thai|indian/i;
