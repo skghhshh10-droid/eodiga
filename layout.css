@@ -938,3 +938,5 @@ a.place-name-link:hover { text-decoration: underline; text-underline-offset: 3px
 .ff-mode .seg-btn { border: 1px solid var(--border-color, rgba(0,0,0,0.12)); background: var(--surface, #fff); }
 .ff-mode .seg-btn.on { border-color: var(--primary-solid); color: var(--primary-solid); background: rgba(99,102,241,0.08); }
 .ff-mode small { flex-basis: 100%; color: var(--text-muted); font-size: var(--fs-xs); }
+.local-modes { padding-top: 8px; border-top: 1px dashed var(--border-color, rgba(0,0,0,0.12)); margin-top: 10px; }
+.rental-links { margin-bottom: 4px; }
