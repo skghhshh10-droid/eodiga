@@ -1738,6 +1738,12 @@ function deletePlaceById(placeId) {
 // 타임라인 / 상세 모달 버튼 공통 처리
 function setupPlaceActionDelegation() {
   document.addEventListener("click", (e) => {
+    const icm = e.target.closest("[data-action=icmode]");
+    if (icm && state.activeTrip) {
+      e.stopPropagation();
+      applyIntercity(icm.getAttribute("data-mode"));
+      return;
+    }
     const rb = e.target.closest("[data-action=railblock], [data-action=railsite]");
     if (rb && state.activeTrip) {
       e.stopPropagation();
@@ -2136,7 +2142,7 @@ function formatMinutes(m) {
 
 
 
-const APP_VERSION = "v33";
+const APP_VERSION = "v34";
 
 // --- 식성: 매운 음식·못 먹는 음식 ---
 const SPICY_RE = /개미집|낙곱새|엽기|배떡|청년다방|불타는|홍짜장|교동짬뽕|마라|훠궈|떡볶이|엽떡|짬뽕|닭발|쭈꾸미|주꾸미|낙지|매운|불닭|아구찜|아귀찜|해물찜|닭갈비|찜닭|김치찜|김치찌개|부대찌개|육개장|감자탕|탄탄|쓰촨|사천|똠얌|커리|카레|태국 음식|인도 음식|麻辣|火锅|辣|spicy|sichuan|szechuan|hot ?pot|curry|thai|indian/i;
@@ -2406,27 +2412,40 @@ function railBlockHtml(trip, day) {
   const lastDay = trip.days || 1;
   const isOut = day === 1, isBack = day === lastDay && lastDay > 1;
   if (!isOut && !isBack) return "";
-  // AI가 이미 기차·고속버스 구간을 넣은 날은 그 이동 칸의 예매 버튼을 쓰면 됨
+  // AI가 이미 기차·고속버스 구간을 넣은 날(직접 고른 구간 제외)은 그 이동 칸의 예매 버튼을 쓰면 됨
   const dayPlaces = trip.places.filter(p => p.day === day);
-  if (dayPlaces.some(p => p.move && ["train", "express"].includes(p.move.mode))) return "";
+  if (!trip.intercity && dayPlaces.some(p => p.move && ["train", "express"].includes(p.move.mode))) return "";
   const date = getTripDate(trip, day);
   const people = Math.max(1, parseInt(trip.people, 10) || 1);
-  const from = isOut ? origin : dest, to = isOut ? dest : origin;
+  const ic = trip.intercity;
+  const destStops = cityStops(dest);
+  const icFrom = ic ? (isOut ? ic.from : ic.stop) : (isOut ? origin : dest);
+  const icTo = ic ? (isOut ? ic.stop : ic.from) : (isOut ? dest : origin);
   const key = `rail-${trip.id}-${day}`;
-  const open = expandedFlights.has(key);
+  const open = expandedFlights.has(key) || (!ic && isOut && !!destStops);
   const when = date ? `${date.getMonth() + 1}/${date.getDate()}` : "날짜 미정";
-  const sites = [
+  const trainSites = [
     { k: "korail", label: "코레일", sub: "KTX·ITX·무궁화" },
-    { k: "srt", label: "SRT", sub: "수서·동탄 출발" },
+    { k: "srt", label: "SRT", sub: "수서·동탄 출발" }
+  ];
+  const busSites = [
     { k: "kobus", label: "고속버스", sub: "고속버스 통합예매" },
     { k: "bustago", label: "시외버스", sub: "버스타고" }
   ];
+  const sites = ic ? (ic.mode === "train" ? trainSites : busSites) : trainSites.concat(busSites);
+  const modeBtns = destStops && isOut ? `
+      <div class="ic-modes">
+        <span>어떻게 갈까요?</span>
+        ${destStops.train ? `<button class="seg-btn ${ic && ic.mode === "train" ? "on" : ""}" data-action="icmode" data-mode="train" data-day="${day}">🚄 KTX·기차 (${esc(destStops.train[0])})</button>` : ""}
+        <button class="seg-btn ${ic && ic.mode === "express" ? "on" : ""}" data-action="icmode" data-mode="express" data-day="${day}">🚌 고속버스 (${esc(destStops.express[0])})</button>
+      </div>` : "";
   return `
-    <div class="move-connector rail-block">${window.icon("train", 15)}<span class="move-main">${isOut ? "가는 길" : "돌아오는 길"} · ${when} · ${people}명</span><span class="move-leg">${esc(from)} → ${esc(to)}</span>
-      <button class="move-ticket" data-action="railblock" data-day="${day}">${window.icon("ticket", 14)}${open ? "접기" : "기차·버스 예매"}</button></div>
+    <div class="move-connector rail-block">${window.icon(ic && ic.mode === "express" ? "bus" : "train", 15)}<span class="move-main">${isOut ? "가는 길" : "돌아오는 길"} · ${when} · ${people}명${ic ? ` · ${esc(ic.service)}` : ""}</span><span class="move-leg">${esc(icFrom)} → ${esc(icTo)}</span>
+      <button class="move-ticket" data-action="railblock" data-day="${day}">${window.icon("ticket", 14)}${open ? "접기" : "예매"}</button></div>
     ${open ? `<div class="stay-panel flight-panel rail-panel">
+      ${modeBtns}
       <div class="stay-links">${sites.map(x => `<button class="stay-link" data-action="railsite" data-day="${day}" data-site="${x.k}"><b>${x.label}</b><small>${x.sub}</small></button>`).join("")}</div>
-      <div class="stay-hint">예매 사이트는 역·날짜를 미리 채울 수 없어서, 누르면 '${when} ${esc(from)} → ${esc(to)}'를 복사해 두고 안내해요.</div>
+      <div class="stay-hint">${ic ? "" : "수단을 고르면 타는 곳·내리는 곳에 맞춰 첫날 시작과 마지막 날 끝이 바뀌어요. "}예매 사이트는 역·날짜를 미리 채울 수 없어서, 누르면 '${when} ${esc(icFrom)} → ${esc(icTo)}'를 복사해 두고 안내해요.</div>
     </div>` : ""}`;
 }
 
@@ -2439,9 +2458,122 @@ async function openRailSite(day, key) {
   const dest = (trip.destination || "").split(/[\/,·]/)[0].trim();
   const isOut = day === 1;
   const date = getTripDate(trip, day);
-  const txt = `${date ? `${date.getMonth() + 1}월 ${date.getDate()}일 ` : ""}${isOut ? origin : dest} → ${isOut ? dest : origin}`;
+  const ic = trip.intercity;
+  const a = ic ? (isOut ? ic.from : ic.stop) : (isOut ? origin : dest);
+  const b = ic ? (isOut ? ic.stop : ic.from) : (isOut ? dest : origin);
+  const txt = `${date ? `${date.getMonth() + 1}월 ${date.getDate()}일 ` : ""}${a} → ${b}`;
   try { if (navigator.clipboard) await navigator.clipboard.writeText(txt); } catch (e) {}
   showToast(`${site.label}에서 ${txt}, ${Math.max(1, parseInt(trip.people, 10) || 1)}명으로 검색하세요.`, 6000);
+}
+
+
+// --- 국내 내륙: KTX / 고속버스에 따라 타는 곳·내리는 곳이 다르므로 일정 시작·끝을 그 역/터미널로 ---
+// [이름, 위도, 경도]
+const CITY_STOPS = {
+  "부산": { train: ["부산역", 35.1151, 129.0422], express: ["부산종합버스터미널(노포)", 35.2840, 129.0953], line: "gyeongbu", t: [150, 59800], b: [260, 36000] },
+  "경주": { train: ["신경주역", 35.7983, 129.1390], express: ["경주고속버스터미널", 35.8390, 129.2040], line: "gyeongbu", t: [125, 49300], b: [230, 30000] },
+  "강릉": { train: ["강릉역", 37.7638, 128.8994], express: ["강릉고속버스터미널", 37.7640, 128.9180], line: "gangwon", t: [115, 27600], b: [170, 22000] },
+  "여수": { train: ["여수엑스포역", 34.7530, 127.7488], express: ["여수종합버스터미널", 34.7556, 127.7206], line: "honam", t: [170, 47200], b: [290, 35000] },
+  "전주": { train: ["전주역", 35.8499, 127.1617], express: ["전주고속버스터미널", 35.8372, 127.1291], line: "honam", t: [100, 34000], b: [160, 20000] },
+  "대구": { train: ["동대구역", 35.8797, 128.6286], express: ["동대구복합환승센터", 35.8781, 128.6287], line: "gyeongbu", t: [105, 43500], b: [220, 26000] },
+  "광주": { train: ["광주송정역", 35.1374, 126.7915], express: ["광주종합버스터미널(유스퀘어)", 35.1600, 126.8790], line: "honam", t: [110, 46800], b: [200, 25000] },
+  "대전": { train: ["대전역", 36.3323, 127.4346], express: ["대전복합터미널", 36.3506, 127.4382], line: "gyeongbu", t: [60, 23700], b: [120, 14000] },
+  "목포": { train: ["목포역", 34.7914, 126.3868], express: ["목포종합버스터미널", 34.8127, 126.4154], line: "honam", t: [140, 52800], b: [230, 29000] },
+  "순천": { train: ["순천역", 34.9459, 127.5034], express: ["순천종합버스터미널", 34.9566, 127.5227], line: "honam", t: [150, 44000], b: [240, 29000] },
+  "포항": { train: ["포항역", 36.0716, 129.3423], express: ["포항시외버스터미널", 36.0195, 129.3497], line: "gyeongbu", t: [140, 52600], b: [250, 32000] },
+  "안동": { train: ["안동역", 36.5626, 128.7330], express: ["안동터미널", 36.5555, 128.7303], line: "jungang", t: [125, 24100], b: [180, 22000] },
+  "울산": { train: ["울산역(통도사)", 35.5517, 129.1385], express: ["울산고속버스터미널", 35.5364, 129.3383], line: "gyeongbu", t: [140, 53700], b: [250, 33000] },
+  "창원": { train: ["창원중앙역", 35.2373, 128.6957], express: ["창원종합버스터미널", 35.2547, 128.6262], line: "gyeongbu", t: [170, 55000], b: [250, 32000] },
+  "진주": { train: ["진주역", 35.1648, 128.1186], express: ["진주고속버스터미널", 35.1871, 128.0828], line: "gyeongbu", t: [185, 61000], b: [220, 30000] },
+  "춘천": { train: ["춘천역", 37.8847, 127.7167], express: ["춘천시외버스터미널", 37.8637, 127.7215], line: "gangwon", t: [75, 9800], b: [80, 10000] },
+  "속초": { train: null, express: ["속초고속버스터미널", 38.1904, 128.6010], line: "gangwon", b: [150, 23000] },
+  "통영": { train: null, express: ["통영종합버스터미널", 34.8854, 128.4232], line: "gyeongbu", b: [250, 33000] }
+};
+const SEOUL_STOPS = {
+  train: { gyeongbu: ["서울역", 37.5547, 126.9707], honam: ["용산역", 37.5299, 126.9648], gangwon: ["서울역", 37.5547, 126.9707], jungang: ["청량리역", 37.5804, 127.0470] },
+  express: { gyeongbu: ["서울경부고속버스터미널", 37.5049, 127.0049], honam: ["센트럴시티터미널", 37.5049, 127.0049], gangwon: ["동서울터미널", 37.5345, 127.0947], jungang: ["동서울터미널", 37.5345, 127.0947] }
+};
+
+function cityStops(name) {
+  const key = Object.keys(CITY_STOPS).find(k => String(name || "").includes(k));
+  return key ? Object.assign({ city: key }, CITY_STOPS[key]) : null;
+}
+
+function originStop(trip, mode, line) {
+  const origin = originCity(trip);
+  if (/서울/.test(origin)) return SEOUL_STOPS[mode][line] || SEOUL_STOPS[mode].gyeongbu;
+  const c = cityStops(origin);
+  return c && c[mode] ? c[mode] : null;
+}
+
+const STOP_RE = /역|터미널|공항|정류장|환승센터/;
+
+// 고른 수단(KTX/고속버스)으로 첫날 시작·마지막 날 끝을 그 역/터미널로 맞춘다
+function applyIntercity(mode) {
+  const trip = state.activeTrip;
+  const destName = (trip.destination || "").split(/[\/,·]/)[0].trim();
+  const dest = cityStops(destName);
+  if (!dest || !dest[mode]) {
+    showToast(mode === "train" ? `${destName}은(는) 기차역 정보가 없어요. 고속버스를 골라 보세요.` : `${destName} 터미널 정보가 없어요.`, 4000);
+    return;
+  }
+  const from = originStop(trip, mode, dest.line);
+  const [stopName, lat, lng] = dest[mode];
+  const est = mode === "train" ? dest.t : dest.b;
+  const fromSeoul = /서울/.test(originCity(trip));
+  const service = mode === "train" ? (dest.line === "jungang" ? "KTX-이음" : dest.city === "춘천" ? "ITX-청춘" : "KTX") : "고속버스";
+  const before = cloneTrip(trip);
+  const lastDay = trip.days || 1;
+  const mkMove = (fromStop, toStop) => ({
+    mode, minutes: fromSeoul && est ? est[0] : undefined, cost: fromSeoul && est ? est[1] : undefined,
+    from: fromStop, to: toStop, service, note: ""
+  });
+  // 기존에 넣었던 가는/오는 구간 제거 (다시 고를 때)
+  trip.places = trip.places.filter(p => !p.intercity);
+  // 템플릿·AI가 넣어 둔 첫날 맨 앞 / 마지막 날 맨 끝의 역·터미널·공항도 고른 수단으로 대체
+  const lead = trip.places.filter(p => p.day === 1);
+  for (const p of lead) { if (p.category === "transit" && STOP_RE.test(p.name)) trip.places.splice(trip.places.indexOf(p), 1); else break; }
+  if (lastDay > 1) {
+    const tail = trip.places.filter(p => p.day === lastDay && p.category !== "hotel").reverse();
+    for (const p of tail) { if (p.category === "transit" && STOP_RE.test(p.name)) trip.places.splice(trip.places.indexOf(p), 1); else break; }
+  }
+  // 첫날: 도착역/터미널을 맨 앞에
+  const d1 = trip.places.filter(p => p.day === 1);
+  const firstStart = d1.length ? parseTimeToMinutes(d1[0].time) : 10 * 60;
+  const arriveAt = isFinite(firstStart) && firstStart < 24 * 60 ? firstStart - 30 : 9 * 60 + 30;
+  const outPlace = {
+    id: `ic-${Date.now()}-out`, day: 1, intercity: "out", category: "transit", name: `${stopName} 도착`,
+    time: `${minutesToHHMM(arriveAt)} - ${minutesToHHMM(arriveAt + 20)}`, lat, lng, price: 0,
+    description: `${originCity(trip)}에서 ${service}로 도착${from ? ` (${from[0]} 출발)` : ""}`,
+    move: mkMove(from ? from[0] : originCity(trip), stopName), coordChecked: true
+  };
+  // 마지막 날: 출발역/터미널을 맨 끝에 (숙소 앞)
+  const dl = trip.places.filter(p => p.day === lastDay && p.category !== "hotel");
+  const lastEnd = dl.length ? (parseTimeRange(dl[dl.length - 1].time) || [0, 17 * 60])[1] : 17 * 60;
+  const backPlace = lastDay > 1 ? {
+    id: `ic-${Date.now()}-back`, day: lastDay, intercity: "back", category: "transit", name: `${stopName} 출발 (${originCity(trip)}행)`,
+    time: `${minutesToHHMM(lastEnd + 40)} - ${minutesToHHMM(lastEnd + 60)}`, lat, lng, price: 0,
+    description: `${service}로 ${originCity(trip)}${from ? ` ${from[0]}` : ""} 도착${fromSeoul && est ? ` · 약 ${formatMinutes(est[0])}` : ""}`,
+    coordChecked: true
+  } : null;
+  const idx = trip.places.findIndex(p => p.day === 1);
+  trip.places.splice(idx < 0 ? 0 : idx, 0, outPlace);
+  if (backPlace) {
+    let at = -1;
+    trip.places.forEach((p, i) => { if (p.day === lastDay && p.category !== "hotel") at = i; });
+    trip.places.splice(at + 1, 0, backPlace);
+  }
+  // 첫날 다음 장소의 이동은 역/터미널에서 출발하므로 다시 계산되게 비움
+  const nextAfterOut = trip.places.filter(p => p.day === 1)[1];
+  if (nextAfterOut && nextAfterOut.move && ["train", "express", "flight"].includes(nextAfterOut.move.mode)) delete nextAfterOut.move;
+  trip.intercity = { mode, stop: stopName, from: from ? from[0] : originCity(trip), service };
+  ensureTripShape(trip);
+  refineUndoTrip = before;
+  recentlyChanged = new Set([outPlace.id].concat(backPlace ? [backPlace.id] : []));
+  renderItineraryAll();
+  persistActiveTrip();
+  setRefineMode("undo");
+  showToast(`${service}: ${from ? from[0] : originCity(trip)} → ${stopName}. 첫날은 ${stopName}에서 시작하고${backPlace ? ` 마지막 날은 ${stopName}에서 끝나요` : ""}. 시간은 편집에서 바꿀 수 있어요.`, 6000);
 }
 
 // --- 항공권: 날짜·인원·구간을 채운 검색 화면 열기 ---
