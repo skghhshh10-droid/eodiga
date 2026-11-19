@@ -80,6 +80,7 @@
       "time": "09:00 - 10:30",
       "name": "장소 이름 (한국어 표기)",
       "searchName": "지도에서 검색할 현지어 또는 영어 공식 이름 (예: Ichiran Honten)",
+      "cuisine": "restaurant·cafe만: 대표 음식 종류 1~2단어 (예: 가이세키, 돼지국밥, 라멘, 디저트 카페)",
       "category": "sightseeing | restaurant | cafe | shopping | hotel | transit 중 하나",
       "lat": 35.0,
       "lng": 135.0,
@@ -419,13 +420,7 @@
   }
 
   async function placesNearby(lat, lng, opts = {}) {
-    const key = getSettings().placesKey;
-    if (!key) throw new Error("설정에서 Google Places 키를 넣어야 쓸 수 있어요.");
-    if (typeof lat !== "number" || typeof lng !== "number") throw new Error("이 장소는 위치 정보가 없어 주변을 찾을 수 없어요.");
-    if (placesUsage().n >= PLACES_DAILY_LIMIT) {
-      throw new Error(`오늘 조회 한도(${PLACES_DAILY_LIMIT}회)를 다 썼어요. 내일 다시 쓸 수 있어요.`);
-    }
-    const body = {
+    return placesRequest("searchNearby", {
       includedTypes: [opts.type === "cafe" ? "cafe" : "restaurant"],
       maxResultCount: 20,
       rankPreference: "POPULARITY",
@@ -433,11 +428,33 @@
       locationRestriction: {
         circle: { center: { latitude: lat, longitude: lng }, radius: opts.radius || 1000 }
       }
-    };
+    }, lat, lng, opts);
+  }
+
+  // 음식 종류(예: 가이세키, 돼지국밥)로 주변 검색 — 그 종류 안에서 1위를 고르기 위해
+  async function placesText(query, lat, lng, opts = {}) {
+    return placesRequest("searchText", {
+      textQuery: query,
+      includedType: opts.type === "cafe" ? "cafe" : "restaurant",
+      pageSize: 20,
+      languageCode: "ko",
+      locationBias: {
+        circle: { center: { latitude: lat, longitude: lng }, radius: opts.radius || 2000 }
+      }
+    }, lat, lng, opts);
+  }
+
+  async function placesRequest(endpoint, body, lat, lng, opts = {}) {
+    const key = getSettings().placesKey;
+    if (!key) throw new Error("설정에서 Google Places 키를 넣어야 쓸 수 있어요.");
+    if (typeof lat !== "number" || typeof lng !== "number") throw new Error("이 장소는 위치 정보가 없어 주변을 찾을 수 없어요.");
+    if (placesUsage().n >= PLACES_DAILY_LIMIT) {
+      throw new Error(`오늘 조회 한도(${PLACES_DAILY_LIMIT}회)를 다 썼어요. 내일 다시 쓸 수 있어요.`);
+    }
     countPlacesCall();
     let res;
     try {
-      res = await fetch("https://places.googleapis.com/v1/places:searchNearby", {
+      res = await fetch(`https://places.googleapis.com/v1/places:${endpoint}`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -540,7 +557,8 @@
           price: isFinite(price) && price >= 0 ? price : undefined,
           priceUnit: p.priceUnit === "group" ? "group" : p.priceUnit === "person" ? "person" : (p.category === "hotel" ? "group" : "person"),
           move: normalizeMove(p.move),
-          alternatives: ["restaurant", "cafe"].includes(p.category) ? normalizeAlternatives(p.alternatives) : undefined
+          alternatives: ["restaurant", "cafe"].includes(p.category) ? normalizeAlternatives(p.alternatives) : undefined,
+          cuisine: ["restaurant", "cafe"].includes(p.category) && p.cuisine ? String(p.cuisine).trim().slice(0, 20) : undefined
         };
       });
     if (out.length === 0) throw new Error("AI가 장소를 하나도 만들지 못했습니다. 조건을 바꿔 다시 시도해 주세요.");
@@ -650,6 +668,6 @@
     getSettings, saveSettings, hasApiKey,
     generateTrip, refineTrip, testApiKey,
     searchPlaces, encodeTrip, decodeTrip, normalizeTime, normalizeMove, MOVE_MODES, suggestRestaurants,
-    hasPlacesKey, placesNearby, placesUsage, PLACES_DAILY_LIMIT
+    hasPlacesKey, placesNearby, placesText, placesUsage, PLACES_DAILY_LIMIT
   };
 })();
