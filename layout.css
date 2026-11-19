@@ -940,3 +940,4 @@ a.place-name-link:hover { text-decoration: underline; text-underline-offset: 3px
 .ff-mode small { flex-basis: 100%; color: var(--text-muted); font-size: var(--fs-xs); }
 .local-modes { padding-top: 8px; border-top: 1px dashed var(--border-color, rgba(0,0,0,0.12)); margin-top: 10px; }
 .rental-links { margin-bottom: 4px; }
+.drive-grid { margin-bottom: 4px; }
