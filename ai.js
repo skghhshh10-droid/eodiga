@@ -23,7 +23,7 @@
 
   // Google Places 키 (웹사이트 제한 걸린 공개용 키만 여기에 넣기)
   const DEFAULT_PLACES_KEY = "AIzaSyDRnpb7y9YUvDBsK2lblV4awL1wFTxqO64"; // 웹사이트(github.io) + Places API (New)만 허용된 키
-  const PLACES_DAILY_LIMIT = 60;
+  const PLACES_DAILY_LIMIT = 100;
   const PLACES_USAGE_KEY = "routy_places_usage";
 
   // ---------- 설정 ----------
@@ -459,7 +459,7 @@
         headers: {
           "Content-Type": "application/json",
           "X-Goog-Api-Key": key,
-          "X-Goog-FieldMask": "places.id,places.displayName,places.location,places.rating,places.userRatingCount,places.primaryTypeDisplayName,places.googleMapsUri,places.businessStatus,places.priceLevel"
+          "X-Goog-FieldMask": PLACE_FIELDS.map(f => "places." + f).join(",")
         },
         body: JSON.stringify(body),
         signal: opts.signal
@@ -478,18 +478,44 @@
     const data = await res.json();
     return (data.places || [])
       .filter(p => !p.businessStatus || p.businessStatus === "OPERATIONAL")
-      .map(p => ({
-        id: p.id,
-        name: (p.displayName && p.displayName.text) || "",
-        lat: p.location && p.location.latitude,
-        lng: p.location && p.location.longitude,
-        rating: typeof p.rating === "number" ? p.rating : 0,
-        count: p.userRatingCount || 0,
-        typeLabel: (p.primaryTypeDisplayName && p.primaryTypeDisplayName.text) || "",
-        mapsUri: p.googleMapsUri || "",
-        priceLevel: p.priceLevel || ""
-      }))
+      .map(mapPlace)
       .filter(p => p.name && typeof p.lat === "number");
+  }
+
+  const PLACE_FIELDS = ["id", "displayName", "location", "rating", "userRatingCount", "primaryTypeDisplayName",
+    "googleMapsUri", "businessStatus", "priceLevel", "shortFormattedAddress", "editorialSummary", "regularOpeningHours"];
+
+  function mapPlace(p) {
+    const hours = p.regularOpeningHours || null;
+    return {
+      id: p.id,
+      name: (p.displayName && p.displayName.text) || "",
+      lat: p.location && p.location.latitude,
+      lng: p.location && p.location.longitude,
+      rating: typeof p.rating === "number" ? p.rating : 0,
+      count: p.userRatingCount || 0,
+      typeLabel: (p.primaryTypeDisplayName && p.primaryTypeDisplayName.text) || "",
+      mapsUri: p.googleMapsUri || "",
+      priceLevel: p.priceLevel || "",
+      address: p.shortFormattedAddress || "",
+      summary: (p.editorialSummary && p.editorialSummary.text) || "",
+      periods: hours && hours.periods ? hours.periods : null,
+      closed: p.businessStatus && p.businessStatus !== "OPERATIONAL" ? p.businessStatus : ""
+    };
+  }
+
+  // 고른 식당의 정보 (별점·영업시간 등) — 저장하지 않고 화면에 보여 줄 때만 받아 온다
+  async function placeDetails(id, opts = {}) {
+    const key = getSettings().placesKey;
+    if (!key) throw new Error("Google Places 키가 없어요.");
+    if (placesUsage().n >= PLACES_DAILY_LIMIT) throw new Error("오늘 조회 한도를 다 썼어요.");
+    countPlacesCall();
+    const res = await fetch(`https://places.googleapis.com/v1/places/${encodeURIComponent(id)}?languageCode=ko`, {
+      headers: { "X-Goog-Api-Key": key, "X-Goog-FieldMask": PLACE_FIELDS.join(",") },
+      signal: opts.signal
+    });
+    if (!res.ok) throw new Error(`Google Places 오류 (${res.status})`);
+    return mapPlace(await res.json());
   }
 
   async function suggestRestaurants(trip, place, opts = {}) {
@@ -668,6 +694,6 @@
     getSettings, saveSettings, hasApiKey,
     generateTrip, refineTrip, testApiKey,
     searchPlaces, encodeTrip, decodeTrip, normalizeTime, normalizeMove, MOVE_MODES, suggestRestaurants,
-    hasPlacesKey, placesNearby, placesText, placesUsage, PLACES_DAILY_LIMIT
+    hasPlacesKey, placesNearby, placesText, placeDetails, placesUsage, PLACES_DAILY_LIMIT
   };
 })();

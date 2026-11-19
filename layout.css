@@ -898,3 +898,19 @@ input, select, textarea {
 [data-theme="dark"] .diet-toggle { background: rgba(255,255,255,0.05); }
 [data-theme="dark"] .diet-toggle.on { color: #fca5a5; }
 .stay-hint.warn { color: #b45309; font-weight: 600; margin: 0 0 8px; }
+
+/* ---------- 식당 Google 정보 줄 ---------- */
+a.place-name-link { color: inherit; text-decoration: none; }
+a.place-name-link:hover { text-decoration: underline; text-underline-offset: 3px; }
+.name-arrow { font-size: 0.7em; margin-left: 4px; color: var(--primary-solid); vertical-align: super; }
+.place-info { margin: 4px 0 2px; font-size: var(--fs-sm); color: var(--text-muted); display: flex; flex-direction: column; gap: 2px; }
+.place-info.loading { font-size: var(--fs-xs); opacity: 0.7; }
+.pi-line { color: var(--text-color); }
+.pi-rating { color: #ca8a04; }
+.pi-count { color: var(--text-muted); }
+.pi-open { color: #15803d; font-weight: 600; }
+.pi-warn { color: #dc2626; font-weight: 700; }
+.pi-summary { color: var(--text-color); opacity: 0.85; }
+.pi-addr { display: flex; align-items: center; gap: 3px; font-size: var(--fs-xs); }
+[data-theme="dark"] .pi-open { color: #4ade80; }
+[data-theme="dark"] .pi-warn { color: #f87171; }
