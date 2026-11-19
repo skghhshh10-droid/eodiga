@@ -2027,7 +2027,7 @@ function formatMinutes(m) {
 
 
 
-const APP_VERSION = "v26";
+const APP_VERSION = "v27";
 
 // --- 식성: 매운 음식·못 먹는 음식 ---
 const SPICY_RE = /개미집|낙곱새|엽기|배떡|청년다방|불타는|홍짜장|교동짬뽕|마라|훠궈|떡볶이|엽떡|짬뽕|닭발|쭈꾸미|주꾸미|낙지|매운|불닭|아구찜|아귀찜|해물찜|닭갈비|찜닭|김치찜|김치찌개|부대찌개|육개장|감자탕|탄탄|쓰촨|사천|똠얌|커리|카레|태국 음식|인도 음식|麻辣|火锅|辣|spicy|sichuan|szechuan|hot ?pot|curry|thai|indian/i;
@@ -2084,6 +2084,99 @@ function setupDietInputs() {
     sync();
   });
   sync();
+}
+
+
+// --- 식당 Google 정보 줄 + 이름 눌러 Google 지도 ---
+const placeInfo = new Map();      // googlePlaceId → 정보 (이번 실행 동안만, 저장 안 함)
+const placeInfoPending = new Set();
+const PRICE_SIGNS = { PRICE_LEVEL_INEXPENSIVE: "₩", PRICE_LEVEL_MODERATE: "₩₩", PRICE_LEVEL_EXPENSIVE: "₩₩₩", PRICE_LEVEL_VERY_EXPENSIVE: "₩₩₩₩" };
+
+function googlePlaceUrl(place) {
+  const trip = state.activeTrip || {};
+  const name = place.searchName || place.name;
+  if (place.googlePlaceId) {
+    return `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(name)}&query_place_id=${encodeURIComponent(place.googlePlaceId)}`;
+  }
+  const q = hasCoords(place) ? `${name} ${trip.destination || ""}`.trim() : `${place.name} ${trip.destination || ""}`.trim();
+  return `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(q)}`;
+}
+
+function placeNameHtml(place) {
+  if (place.category === "transit") return `<span class="timeline-place-name">${esc(place.name)}</span>`;
+  return `<a class="timeline-place-name place-name-link" href="${esc(googlePlaceUrl(place))}" target="_blank" rel="noopener" title="Google 지도에서 자세히 보기">${esc(place.name)}<span class="name-arrow" aria-hidden="true">↗</span></a>`;
+}
+
+function hhmm(t) {
+  return `${String(t.hour || 0).padStart(2, "0")}:${String(t.minute || 0).padStart(2, "0")}`;
+}
+
+// 그날(여행 날짜, 없으면 오늘) 영업시간과 방문 시간대 영업 여부
+function openingStatus(info, place) {
+  if (!info.periods || !info.periods.length) return null;
+  const date = getTripDate(state.activeTrip, place.day);
+  const d = date || new Date();
+  const wd = d.getDay();
+  const label = date ? "그날" : "오늘";
+  if (info.periods.length === 1 && !info.periods[0].close) return { text: `${label} 24시간`, warn: false };
+  const today = info.periods.filter(p => p.open && p.open.day === wd);
+  if (!today.length) return { text: `${label} 휴무`, warn: true };
+  const ranges = today.map(p => `${hhmm(p.open)}–${p.close ? hhmm(p.close) : "?"}`);
+  // 방문 시작 시각이 영업시간 안인지
+  const start = parseTimeToMinutes(place.time);
+  let inside = true;
+  if (isFinite(start) && start < 24 * 60) {
+    inside = today.some(p => {
+      const o = (p.open.hour || 0) * 60 + (p.open.minute || 0);
+      let c = p.close ? (p.close.hour || 0) * 60 + (p.close.minute || 0) : 24 * 60;
+      if (p.close && p.close.day !== p.open.day) c += 24 * 60;
+      return start >= o && start < c;
+    });
+  }
+  return { text: `${label} ${ranges.join(", ")}${inside ? "" : " · 방문 시간엔 영업 안 함"}`, warn: !inside };
+}
+
+function placeInfoHtml(place) {
+  if (!place.googlePlaceId || !["restaurant", "cafe"].includes(place.category)) return "";
+  const info = placeInfo.get(place.googlePlaceId);
+  if (!info) {
+    queuePlaceInfo(place.googlePlaceId);
+    return `<div class="place-info loading">Google 정보 불러오는 중…</div>`;
+  }
+  if (info.error) return "";
+  const bits = [];
+  if (info.rating) bits.push(`<b class="pi-rating">★ ${info.rating.toFixed(1)}</b> <span class="pi-count">(${info.count.toLocaleString("ko-KR")})</span>`);
+  if (PRICE_SIGNS[info.priceLevel]) bits.push(PRICE_SIGNS[info.priceLevel]);
+  if (info.typeLabel) bits.push(esc(info.typeLabel));
+  const open = openingStatus(info, place);
+  if (open) bits.push(`<span class="${open.warn ? "pi-warn" : "pi-open"}">${esc(open.text)}</span>`);
+  return `
+    <div class="place-info">
+      <div class="pi-line">${bits.join(" · ")}</div>
+      ${info.summary ? `<div class="pi-summary">${esc(info.summary)}</div>` : ""}
+      ${info.address ? `<div class="pi-addr">${window.icon("pin", 13)}${esc(info.address)}</div>` : ""}
+    </div>`;
+}
+
+let placeInfoTimer = null;
+function queuePlaceInfo(id) {
+  if (placeInfoPending.has(id)) return;
+  placeInfoPending.add(id);
+  clearTimeout(placeInfoTimer);
+  placeInfoTimer = setTimeout(runPlaceInfoQueue, 50);
+}
+
+async function runPlaceInfoQueue() {
+  const ids = [...placeInfoPending].filter(id => !placeInfo.has(id));
+  for (const id of ids) {
+    try {
+      placeInfo.set(id, await window.RoutyAI.placeDetails(id));
+    } catch (e) {
+      placeInfo.set(id, { error: e.message });
+    }
+    placeInfoPending.delete(id);
+  }
+  if (ids.length) renderTimeline();
 }
 
 // --- 숙소 최저가 바로가기 ---
@@ -2468,7 +2561,13 @@ async function autoPickTopInner(trip, opts = {}) {
       const { items } = await fetchTopItems(place, trip);
       place.autoTopTried = true; // 조회에 성공했을 때만 표시 (실패하면 다음에 다시 시도)
       // 식성에 안 맞는 곳은 1위 후보에서 빼고, 남는 곳이 없으면 AI가 고른 식당을 그대로 둔다
-      const ranked = rankTopItems(budgetFit(items, trip.budget).filter(it => !dietConflict(it)), sort);
+      let pool = budgetFit(items, trip.budget).filter(it => !dietConflict(it));
+      // 여행 날짜가 있으면 그날 휴무이거나 방문 시간에 문 닫은 곳은 빼기 (남는 곳이 없으면 그대로)
+      if (getTripDate(trip, place.day)) {
+        const open = pool.filter(it => { const st = openingStatus(it, place); return !st || !st.warn; });
+        if (open.length) pool = open;
+      }
+      const ranked = rankTopItems(pool, sort);
       const best = ranked.find(it => !used.has(it.id));
       if (best && trip.places.includes(place)) {
         used.add(best.id);
@@ -2588,6 +2687,7 @@ async function fetchTopItems(place, trip) {
   }
   if (!items.length) items = await window.RoutyAI.placesNearby(center.lat, center.lng, { type });
   topCache.set(key, items);
+  items.forEach(i => { if (!placeInfo.has(i.id)) placeInfo.set(i.id, i); });
   if (!place.topCenter) place.topCenter = center;
   if (place.topQuery === undefined) place.topQuery = query;
   return { items, query };
@@ -2652,7 +2752,8 @@ function applyTopPick(place, it, center) {
   place.searchName = "";
   place.lat = it.lat;
   place.lng = it.lng;
-  place.description = it.typeLabel ? `${it.typeLabel} · Google 지도에서 고른 곳` : "Google 지도에서 고른 곳";
+  // AI가 쓴 설명(예: 부모님 입맛에 맞는 정갈한 가이세키)은 그대로 두고, 가게 정보는 Google 정보 줄로 보여 준다
+  if (!place.description || /Google 지도에서 고른 곳$/.test(place.description)) place.description = "";
   place.googlePlaceId = it.id;
   place.coordMissing = false;
   place.coordFixed = false;
@@ -3195,10 +3296,11 @@ function renderTimeline() {
         <div class="timeline-dot"></div>
         <div class="timeline-item-header">
           <span class="timeline-time">${index + 1} · ${esc(place.time)} · ${catKorean}${changed ? ` <em class="changed-badge">AI 변경</em>` : ""}${place.coordFixed ? ` <em class="fixed-badge" title="지도 데이터로 위치를 보정했어요">위치 보정</em>` : ""}${place.autoTop ? ` <em class="top-badge">★ Google ${place.autoTop === "count" ? "리뷰수" : "별점"} 1위</em>` : ""}</span>
-          <span class="timeline-place-name">${esc(place.name)}</span>
+          ${placeNameHtml(place)}
           ${priceHtml}
         </div>
-        ${place.description ? `<p class="timeline-desc">${esc(place.description)}</p>` : ""}
+        ${placeInfoHtml(place)}
+        ${place.description && !/Google 지도에서 고른 곳$/.test(place.description) ? `<p class="timeline-desc">${esc(place.description)}</p>` : ""}
         ${tips ? `<p class="timeline-desc transit-tip">${tips}</p>` : ""}
         ${coordWarn ? `<div>${coordWarn}</div>` : ""}
         <div class="timeline-actions">
