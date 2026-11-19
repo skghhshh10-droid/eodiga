@@ -1355,6 +1355,7 @@ async function applyAIRefine(instruction, scopeDay, opts = {}) {
   if (plan.tips && plan.tips.length) t.checklistSeed = plan.tips;
   ensureTripShape(t);
   ensurePlacePrices(t);
+  markIntercityEdges(t);
   return new Set(incoming.filter(p => !oldKeys.has(`${p.day}|${p.name}|${p.time}`)).map(p => p.id));
 }
 
@@ -1738,6 +1739,10 @@ function deletePlaceById(placeId) {
 // 타임라인 / 상세 모달 버튼 공통 처리
 function setupPlaceActionDelegation() {
   document.addEventListener("click", (e) => {
+    const lmb = e.target.closest("[data-action=localmode]");
+    if (lmb && state.activeTrip) { e.stopPropagation(); setLocalMode(lmb.getAttribute("data-mode")); return; }
+    const rs = e.target.closest("[data-action=rentalsite]");
+    if (rs && state.activeTrip) { e.stopPropagation(); openRentalSite(rs.getAttribute("data-site")); return; }
     const gf = e.target.closest("[data-action=groundfit]");
     if (gf && state.activeTrip) { e.stopPropagation(); openGroundFit(); return; }
     const icm = e.target.closest("[data-action=icmode]");
@@ -2103,7 +2108,7 @@ function setupBudgetModal() {
 }
 
 // 여행 이동 수단 변경 → (AI 키가 있으면) 이동 방법·동선 다시 짜기
-async function changeTripTransport(value) {
+async function changeTripTransport(value, opts = {}) {
   const t = state.activeTrip;
   if (!t) return;
   const prev = t.transport || "auto";
@@ -2111,15 +2116,16 @@ async function changeTripTransport(value) {
   persistActiveTrip();
   renderTripMeta();
   if (!window.RoutyAI.hasApiKey() || !t.places.length) {
-    showToast(`이동 수단을 '${TRANSPORT_LABELS[value]}'(으)로 바꿨어요. 길찾기 링크에 반영돼요.`);
+    showToast(`현지 이동을 '${opts.label || TRANSPORT_LABELS[value]}'(으)로 바꿨어요. 길찾기 링크에 반영돼요.`);
     return;
   }
-  const ok = await uiConfirm(`이동 수단을 '${TRANSPORT_LABELS[value]}'(으)로 바꿨어요.\nAI가 이 기준으로 이동 방법과 동선을 다시 짜 드릴까요?`, { okText: "다시 짜기", cancelText: "설정만 바꾸기" });
+  const ok = await uiConfirm(`현지 이동을 '${opts.label || TRANSPORT_LABELS[value]}'(으)로 바꿨어요.\nAI가 이 기준으로 장소 사이 이동 방법과 동선을 다시 짜 드릴까요?`, { okText: "다시 짜기", cancelText: "설정만 바꾸기" });
   if (!ok) return;
   refineScope = "all";
   updateRefineScopeLabel();
   const input = document.getElementById("ai-refine-input");
-  input.value = `이동 수단을 '${TRANSPORT_LABELS[value]}' 기준으로 바꿔 줘 (이전: ${TRANSPORT_LABELS[prev]}). 각 장소의 move(이동 방법·소요 시간)를 새로 정하고, 필요하면 동선과 시간도 조정해 줘.`;
+  const keep = t.intercity ? ` 첫날 맨 앞 '${t.intercity.stop}' 도착${t.localMode === "rental" ? "·렌터카 인수" : ""} 장소와 마지막 날 끝 ${t.localMode === "rental" ? "렌터카 반납·" : ""}'${t.intercity.stop}' 출발 장소는 이름·시간 그대로 두고, 그 사이 현지 이동만 바꿔 줘.` : "";
+  input.value = `현지 이동 수단을 '${opts.label || TRANSPORT_LABELS[value]}' 기준으로 바꿔 줘 (이전: ${TRANSPORT_LABELS[prev]}). 각 장소의 move(이동 방법·소요 시간)를 새로 정하고, 필요하면 동선과 시간도 조정해 줘.${keep}`;
   document.getElementById("ai-refine-form").requestSubmit();
 }
 
@@ -2144,7 +2150,7 @@ function formatMinutes(m) {
 
 
 
-const APP_VERSION = "v35";
+const APP_VERSION = "v36";
 
 // --- 식성: 매운 음식·못 먹는 음식 ---
 const SPICY_RE = /개미집|낙곱새|엽기|배떡|청년다방|불타는|홍짜장|교동짬뽕|마라|훠궈|떡볶이|엽떡|짬뽕|닭발|쭈꾸미|주꾸미|낙지|매운|불닭|아구찜|아귀찜|해물찜|닭갈비|찜닭|김치찜|김치찌개|부대찌개|육개장|감자탕|탄탄|쓰촨|사천|똠얌|커리|카레|태국 음식|인도 음식|麻辣|火锅|辣|spicy|sichuan|szechuan|hot ?pot|curry|thai|indian/i;
@@ -2407,7 +2413,8 @@ function originCity(trip) {
 // 국내 내륙: 출발 도시 ↔ 목적지 기차·버스 예매 블록 (대중교통·알아서·택시일 때)
 function railBlockHtml(trip, day) {
   if (!trip || tripKind(trip) !== "inland") return "";
-  if (["car", "walk"].includes(trip.transport)) return "";
+  // 자가용·도보로 가는 여행이면 숨김 (단, KTX·버스로 가서 현지에서 렌터카를 쓰는 경우는 표시)
+  if (["car", "walk"].includes(trip.transport) && !trip.intercity) return "";
   const origin = originCity(trip);
   const dest = (trip.destination || "").split(/[\/,·]/)[0].trim();
   if (!dest || dest.includes(origin) || origin.includes(dest)) return "";
@@ -2447,6 +2454,7 @@ function railBlockHtml(trip, day) {
     ${open ? `<div class="stay-panel flight-panel rail-panel">
       ${modeBtns}
       <div class="stay-links">${sites.map(x => `<button class="stay-link" data-action="railsite" data-day="${day}" data-site="${x.k}"><b>${x.label}</b><small>${x.sub}</small></button>`).join("")}</div>
+      ${ic && isOut ? localModeHtml(trip) : ""}
       ${ic ? `${ic.times && (ic.times.out.arr || (ic.times.ret && ic.times.ret.dep)) ? `<div class="ff-booked">${ic.times.out.arr ? `<div>🎫 가는 편 ${ic.times.out.no ? `<b>${esc(ic.times.out.no)}</b> ` : ""}${esc(ic.from)} ${esc(ic.times.out.dep || "?")} → ${esc(ic.stop)} ${esc(ic.times.out.arr)}</div>` : ""}${ic.times.ret && ic.times.ret.dep ? `<div>🎫 오는 편 ${ic.times.ret.no ? `<b>${esc(ic.times.ret.no)}</b> ` : ""}${esc(ic.stop)} ${esc(ic.times.ret.dep)} → ${esc(ic.from)} ${esc(ic.times.ret.arr || "?")}</div>` : ""}</div>` : ""}
       <button class="btn btn-sm ff-open" data-action="groundfit" data-day="${day}">${window.icon("calendar", 16)}${ic.times ? "예매 시간 고치기" : "예매 시간 넣고 일정 맞추기"}</button>` : ""}
       <div class="stay-hint">${ic ? "" : "수단을 고르면 타는 곳·내리는 곳에 맞춰 첫날 시작과 마지막 날 끝이 바뀌어요. "}예매 사이트는 역·날짜를 미리 채울 수 없어서, 누르면 '${when} ${esc(icFrom)} → ${esc(icTo)}'를 복사해 두고 안내해요.</div>
@@ -2532,7 +2540,7 @@ function applyIntercity(mode) {
     mode, minutes: fromSeoul && est ? est[0] : undefined, cost: fromSeoul && est ? est[1] : undefined,
     from: fromStop, to: toStop, service, note: ""
   });
-  // 기존에 넣었던 가는/오는 구간 제거 (다시 고를 때)
+  // 기존에 넣었던 가는/오는 구간·렌터카 장소 제거 (다시 고를 때)
   trip.places = trip.places.filter(p => !p.intercity);
   // 템플릿·AI가 넣어 둔 첫날 맨 앞 / 마지막 날 맨 끝의 역·터미널·공항도 고른 수단으로 대체
   const lead = trip.places.filter(p => p.day === 1);
@@ -2572,12 +2580,111 @@ function applyIntercity(mode) {
   if (nextAfterOut && nextAfterOut.move && ["train", "express", "flight"].includes(nextAfterOut.move.mode)) delete nextAfterOut.move;
   trip.intercity = { mode, stop: stopName, from: from ? from[0] : originCity(trip), service };
   ensureTripShape(trip);
+  if (trip.localMode === "rental") {
+    // 역·터미널이 바뀌었으니 렌터카 인수·반납 장소도 새 위치로
+    const lm = trip.localMode; trip.localMode = null;
+    trip.places = trip.places.filter(p => p.intercity !== "pick" && p.intercity !== "drop");
+    trip.localMode = lm;
+    const op = trip.places.find(p => p.intercity === "out"), bp = trip.places.find(p => p.intercity === "back");
+    if (op) { const r = parseTimeRange(op.time) || [600, 620]; trip.places.splice(trip.places.indexOf(op) + 1, 0, { id: `ic-${Date.now()}-pick`, day: op.day, intercity: "pick", category: "transit", name: `${stopName} 렌터카 인수`, time: `${minutesToHHMM(r[1])} - ${minutesToHHMM(r[1] + 30)}`, lat, lng, price: 0, description: "역·터미널 근처 렌터카 지점에서 차량 인수 (면허증 지참)", coordChecked: true }); }
+    if (bp) { const r = parseTimeRange(bp.time) || [960, 980]; trip.places.splice(trip.places.indexOf(bp), 0, { id: `ic-${Date.now()}-drop`, day: bp.day, intercity: "drop", category: "transit", name: `${stopName} 렌터카 반납`, time: `${minutesToHHMM(r[0] - 40)} - ${minutesToHHMM(r[0] - 10)}`, lat, lng, price: 0, description: "주유·반납 시간 여유 있게", coordChecked: true }); }
+  }
   refineUndoTrip = before;
   recentlyChanged = new Set([outPlace.id].concat(backPlace ? [backPlace.id] : []));
   renderItineraryAll();
   persistActiveTrip();
   setRefineMode("undo");
   showToast(`${service}: ${from ? from[0] : originCity(trip)} → ${stopName}. 첫날은 ${stopName}에서 시작하고${backPlace ? ` 마지막 날은 ${stopName}에서 끝나요` : ""}. 시간은 편집에서 바꿀 수 있어요.`, 6000);
+}
+
+
+// AI가 일정을 다시 짠 뒤에도 역·터미널·렌터카 장소를 다시 알아보게 표시
+function markIntercityEdges(trip) {
+  const ic = trip && trip.intercity;
+  if (!ic) return;
+  const lastDay = trip.days || 1;
+  trip.places.forEach(p => {
+    if (p.category !== "transit" || !p.name.includes(ic.stop)) return;
+    if (/렌터카 인수/.test(p.name)) p.intercity = "pick";
+    else if (/렌터카 반납/.test(p.name)) p.intercity = "drop";
+    else if (p.day === 1 && /도착/.test(p.name)) p.intercity = "out";
+    else if (p.day === lastDay && /출발/.test(p.name)) p.intercity = "back";
+    else return;
+    p.coordChecked = true;
+  });
+}
+
+// --- 도착해서 현지 이동: 렌터카 / 버스 / 택시 ---
+const LOCAL_MODES = {
+  rental: { label: "렌터카", transport: "car", icon: "car" },
+  transit: { label: "버스·대중교통", transport: "transit", icon: "bus" },
+  taxi: { label: "택시", transport: "taxi", icon: "taxi" }
+};
+const RENTAL_SITES = [
+  { k: "socar", label: "쏘카", sub: "카셰어링·역 앞 대여", url: "https://www.socar.kr/" },
+  { k: "lotte", label: "롯데렌터카", sub: "역·터미널 지점", url: "https://www.lotterentacar.net/" },
+  { k: "carmore", label: "카모아", sub: "렌터카 가격 비교", url: "https://www.carmore.kr/" }
+];
+
+function setLocalMode(mode) {
+  const trip = state.activeTrip;
+  const ic = trip.intercity;
+  const lm = LOCAL_MODES[mode];
+  if (!ic || !lm) return;
+  trip.localMode = mode;
+  // 렌터카 인수·반납 장소 넣기/빼기
+  trip.places = trip.places.filter(p => p.intercity !== "pick" && p.intercity !== "drop");
+  if (mode === "rental") {
+    const outP = trip.places.find(p => p.intercity === "out");
+    const backP = trip.places.find(p => p.intercity === "back");
+    if (outP) {
+      const r = parseTimeRange(outP.time) || [600, 620];
+      const pick = { id: `ic-${Date.now()}-pick`, day: outP.day, intercity: "pick", category: "transit", name: `${ic.stop} 렌터카 인수`,
+        time: `${minutesToHHMM(r[1])} - ${minutesToHHMM(r[1] + 30)}`, lat: outP.lat, lng: outP.lng, price: 0,
+        description: "역·터미널 근처 렌터카 지점에서 차량 인수 (면허증 지참)", coordChecked: true };
+      trip.places.splice(trip.places.indexOf(outP) + 1, 0, pick);
+    }
+    if (backP) {
+      const r = parseTimeRange(backP.time) || [960, 980];
+      const drop = { id: `ic-${Date.now()}-drop`, day: backP.day, intercity: "drop", category: "transit", name: `${ic.stop} 렌터카 반납`,
+        time: `${minutesToHHMM(r[0] - 40)} - ${minutesToHHMM(r[0] - 10)}`, lat: backP.lat, lng: backP.lng, price: 0,
+        description: "주유·반납 시간 여유 있게", coordChecked: true };
+      trip.places.splice(trip.places.indexOf(backP), 0, drop);
+    }
+  }
+  renderItineraryAll();
+  persistActiveTrip();
+  changeTripTransport(lm.transport, { label: lm.label });
+}
+
+function rentalHint(trip) {
+  const pick = trip.places.find(p => p.intercity === "pick");
+  const drop = trip.places.find(p => p.intercity === "drop");
+  const d = (p) => { const dt = p && getTripDate(trip, p.day); return dt ? `${dt.getMonth() + 1}/${dt.getDate()} ` : ""; };
+  const t = (p) => p ? (parseTimeRange(p.time) ? minutesToHHMM(parseTimeRange(p.time)[0]) : "") : "";
+  return `${trip.intercity.stop} ${d(pick)}${t(pick)} 인수 ~ ${d(drop)}${t(drop)} 반납`;
+}
+
+async function openRentalSite(key) {
+  const site = RENTAL_SITES.find(x => x.k === key);
+  if (!site) return;
+  window.open(site.url, "_blank", "noopener");
+  const txt = rentalHint(state.activeTrip);
+  try { if (navigator.clipboard) await navigator.clipboard.writeText(txt); } catch (e) {}
+  showToast(`${site.label}에서 '${txt}'로 검색하세요. (복사해 뒀어요)`, 6000);
+}
+
+function localModeHtml(trip) {
+  const ic = trip.intercity;
+  if (!ic) return "";
+  const cur = trip.localMode || (trip.transport === "car" ? "rental" : trip.transport === "taxi" ? "taxi" : trip.transport === "transit" ? "transit" : "");
+  return `
+      <div class="ic-modes local-modes">
+        <span>도착해서는요?</span>
+        ${Object.entries(LOCAL_MODES).map(([k, m]) => `<button class="seg-btn ${cur === k ? "on" : ""}" data-action="localmode" data-mode="${k}">${window.icon(m.icon, 14)} ${m.label}</button>`).join("")}
+      </div>
+      ${cur === "rental" ? `<div class="stay-links rental-links">${RENTAL_SITES.map(x => `<button class="stay-link" data-action="rentalsite" data-site="${x.k}"><b>${x.label}</b><small>${x.sub}</small></button>`).join("")}</div>
+      <div class="stay-hint">렌터카: ${esc(rentalHint(trip))}</div>` : ""}`;
 }
 
 // --- 항공권: 날짜·인원·구간을 채운 검색 화면 열기 ---
@@ -2891,9 +2998,14 @@ async function fitTripToGround(out, ret) {
     backP.time = `${minutesToHHMM(dp - 20)} - ${ret.dep}`;
     backP.description = `${ret.no ? ret.no + " · " : ""}${ret.dep} 출발${ret.arr ? ` → ${ic.from} ${ret.arr} 도착` : ""}`;
   }
+  // 렌터카 인수·반납 시간도 역·터미널 시간에 맞춰
+  const pickP = trip.places.find(p => p.intercity === "pick"), dropP = trip.places.find(p => p.intercity === "drop");
+  if (pickP && outP) { const r = parseTimeRange(outP.time); if (r) pickP.time = `${minutesToHHMM(r[1])} - ${minutesToHHMM(r[1] + 30)}`; }
+  if (dropP && backP) { const r = parseTimeRange(backP.time); if (r) dropP.time = `${minutesToHHMM(r[0] - 40)} - ${minutesToHHMM(r[0] - 10)}`; }
+  const rentalKeep = pickP || dropP ? " 렌터카 인수·반납 장소도 이름·시간 그대로 두세요." : "";
   const instr = {};
-  if (out.arr) instr[1] = `예매한 ${ic.service}: ${ic.from} ${out.dep || ""} 출발 → ${ic.stop} ${out.arr} 도착. Day 1 맨 앞의 "${outP ? outP.name : ic.stop + " 도착"}"(category transit, time "${out.arr} - ${minutesToHHMM(hhmmToMin(out.arr) + 20)}")은 그대로 두고, ${ic.stop}에서 다음 장소까지 이동 시간을 고려해 그 뒤로 일정을 다시 배치하세요. 시간이 모자라면 장소를 빼거나 줄이고, 숙소는 유지하세요.`;
-  if (ret && ret.dep && backP) instr[backP.day] = `예매한 ${ic.service}: ${ic.stop} ${ret.dep} 출발 → ${ic.from}${ret.arr ? ` ${ret.arr} 도착` : ""}. Day ${backP.day} 맨 끝의 "${backP.name}"(category transit, time "${minutesToHHMM(hhmmToMin(ret.dep) - 20)} - ${ret.dep}")은 그대로 두고, 그 전 장소들이 ${ic.stop}까지 이동 시간을 포함해 ${minutesToHHMM(hhmmToMin(ret.dep) - 20)} 전에 끝나도록 줄이거나 앞당기세요. 그 뒤 일정은 넣지 마세요.`;
+  if (out.arr) instr[1] = `예매한 ${ic.service}: ${ic.from} ${out.dep || ""} 출발 → ${ic.stop} ${out.arr} 도착. Day 1 맨 앞의 "${outP ? outP.name : ic.stop + " 도착"}"(category transit, time "${out.arr} - ${minutesToHHMM(hhmmToMin(out.arr) + 20)}")은 그대로 두고, ${ic.stop}에서 다음 장소까지 이동 시간을 고려해 그 뒤로 일정을 다시 배치하세요. 시간이 모자라면 장소를 빼거나 줄이고, 숙소는 유지하세요.${rentalKeep}`;
+  if (ret && ret.dep && backP) instr[backP.day] = `예매한 ${ic.service}: ${ic.stop} ${ret.dep} 출발 → ${ic.from}${ret.arr ? ` ${ret.arr} 도착` : ""}. Day ${backP.day} 맨 끝의 "${backP.name}"(category transit, time "${minutesToHHMM(hhmmToMin(ret.dep) - 20)} - ${ret.dep}")은 그대로 두고, 그 전 장소들이 ${ic.stop}까지 이동 시간을 포함해 ${minutesToHHMM(hhmmToMin(ret.dep) - 20)} 전에 끝나도록 줄이거나 앞당기세요. 그 뒤 일정은 넣지 마세요.${rentalKeep}`;
   const days = Object.keys(instr).map(Number).sort((a, b) => a - b);
   const markEdges = () => {
     const d1 = trip.places.filter(p => p.day === 1);
