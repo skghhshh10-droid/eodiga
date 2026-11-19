@@ -87,7 +87,7 @@
       "description": "무엇을 하는지·팁을 한 문장으로 짧게 (한국어)",
       "price": 15000,
       "priceUnit": "person 또는 group",
-      "move": { "mode": "walk | bus | express | subway | train | car | taxi | bike | ferry | flight 중 하나", "minutes": 15, "cost": 1500, "note": "직전 장소에서 여기까지 가는 방법 (예: 2호선 강남역→홍대입구역)", "from": "기차·고속버스일 때만: 출발역/터미널 (예: 서울역)", "to": "기차·고속버스일 때만: 도착역/터미널 (예: 부산역)", "service": "기차·고속버스일 때만: KTX | SRT | ITX-새마을 | 무궁화 | 고속버스 | 시외버스 등" },
+      "move": { "mode": "walk | bus | express | subway | train | car | taxi | bike | ferry | flight 중 하나", "minutes": 15, "cost": 1500, "note": "직전 장소에서 여기까지 가는 방법 (예: 2호선 강남역→홍대입구역)", "from": "기차·고속버스·비행기일 때만: 출발역/터미널/공항 (예: 서울역, 인천국제공항(ICN))", "to": "기차·고속버스·비행기일 때만: 도착역/터미널/공항 (예: 부산역, 간사이국제공항(KIX))", "service": "기차·고속버스·비행기일 때만: KTX | SRT | 고속버스 | 시외버스 | 항공사 예시(예: 저가항공 제주항공·피치) 등" },
       "alternatives": [
         { "name": "식당 후보 이름", "searchName": "현지어/영어 이름", "lat": 35.0, "lng": 135.0, "description": "대표 메뉴·특징 한 문장", "price": 12000 }
       ]
@@ -108,6 +108,7 @@
 - 같은 숙소에 연박하면 매일 같은 이름으로 넣으세요.
 - 장거리 이동(공항, 기차 등)은 category "transit"으로 넣으세요.
 - move는 "직전 장소에서 이 장소까지" 이동 방법입니다. 각 날의 첫 장소는 move를 생략하세요. minutes는 예상 소요 시간(분).
+- 비행기 구간(flight)은 from/to에 공항 이름과 IATA 코드 괄호 표기(예: 김포국제공항(GMP), 제주국제공항(CJU))를 꼭 쓰고, cost는 일반석 편도 1인 요금 추정치, minutes는 비행 시간입니다.
 - 도시 간 장거리 버스는 bus가 아니라 express(고속·시외버스)로 쓰세요. train·express는 from/to에 실제 역·터미널 정식 이름, service에 열차·버스 종류를 꼭 넣고, cost는 일반실·일반고속 기준 1인 정가를 추정해 넣으세요. 수서·동탄 출발 고속철은 SRT, 서울·용산역 출발은 KTX입니다.
 - move.cost는 이동 요금(원, 정수). 택시·자가용(유류비·통행료·주차비)·렌터카는 일행 전체 금액, 버스·지하철·기차·배·비행기는 1인 요금, 도보·자전거는 0.`;
 
@@ -136,6 +137,7 @@
     const lines = [
       "당신은 한국인 여행자를 위한 전문 여행 플래너입니다. 아래 조건으로 실제 여행 일정을 만들어 주세요.",
       `- 목적지: ${input.destination}`,
+      `- 출발지: ${input.origin || "서울"} (출발지에서 목적지까지 비행기가 필요하면 첫날 맨 앞에 도착 공항을 transit으로 넣고 move.mode "flight"로 오는 구간을, 마지막 날 맨 끝에 출발지 공항으로 돌아가는 flight 구간을 넣으세요)`,
       `- 기간: ${input.days}일${input.days > 1 ? ` (${input.days - 1}박 ${input.days}일)` : " (당일치기)"}`,
       input.startDate ? `- 출발일: ${input.startDate} (계절/요일/휴무일을 고려하세요)` : "",
       input.party ? `- 동행: ${input.party}${input.people ? ` (총 ${input.people}명)` : ""}` : "",
