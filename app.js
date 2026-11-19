@@ -1739,6 +1739,23 @@ function deletePlaceById(placeId) {
 // 타임라인 / 상세 모달 버튼 공통 처리
 function setupPlaceActionDelegation() {
   document.addEventListener("click", (e) => {
+    const dvb = e.target.closest("[data-action=driveblock], [data-action=drivefit], [data-action=drivenaver]");
+    if (dvb && state.activeTrip) {
+      e.stopPropagation();
+      const a = dvb.getAttribute("data-action");
+      if (a === "driveblock") {
+        const key = `drive-${state.activeTrip.id}`;
+        if (expandedFlights.has(key)) expandedFlights.delete(key); else expandedFlights.add(key);
+        renderTimeline();
+        ensureDriveEstimate(state.activeTrip).then(m => {
+          const el = document.getElementById("drive-preview"), inp = document.getElementById("drive-min");
+          if (el && m) el.textContent = `예상 운전 시간 약 ${formatMinutes(m)} (휴게소 포함, 교통 상황에 따라 달라요). 실제 시간은 아래 네이버 지도로 확인하고 고쳐 주세요.`;
+          if (inp && m && !inp.value) inp.value = m;
+        });
+      } else if (a === "drivefit") fitTripToDrive();
+      else openDriveNaver();
+      return;
+    }
     const lmb = e.target.closest("[data-action=localmode]");
     if (lmb && state.activeTrip) { e.stopPropagation(); setLocalMode(lmb.getAttribute("data-mode")); return; }
     const rs = e.target.closest("[data-action=rentalsite]");
@@ -2165,7 +2182,7 @@ function formatMinutes(m) {
 
 
 
-const APP_VERSION = "v37";
+const APP_VERSION = "v38";
 
 // --- 식성: 매운 음식·못 먹는 음식 ---
 const SPICY_RE = /개미집|낙곱새|엽기|배떡|청년다방|불타는|홍짜장|교동짬뽕|마라|훠궈|떡볶이|엽떡|짬뽕|닭발|쭈꾸미|주꾸미|낙지|매운|불닭|아구찜|아귀찜|해물찜|닭갈비|찜닭|김치찜|김치찌개|부대찌개|육개장|감자탕|탄탄|쓰촨|사천|똠얌|커리|카레|태국 음식|인도 음식|麻辣|火锅|辣|spicy|sichuan|szechuan|hot ?pot|curry|thai|indian/i;
@@ -2704,6 +2721,169 @@ function localModeHtml(trip) {
       </div>
       ${cur === "rental" ? `<div class="stay-links rental-links">${RENTAL_SITES.map(x => `<button class="stay-link" data-action="rentalsite" data-site="${x.k}"><b>${x.label}</b><small>${x.sub}</small></button>`).join("")}</div>
       <div class="stay-hint">렌터카: ${esc(rentalHint(trip))}</div>` : ""}`;
+}
+
+
+// --- 자가용: 집 출발 시각 → 현지 도착 예정에 맞춰 일정 ---
+const CITY_COORDS = {
+  "서울": [37.5665, 126.978], "인천": [37.4563, 126.7052], "수원": [37.2636, 127.0286], "성남": [37.42, 127.1265], "용인": [37.2411, 127.1776],
+  "고양": [37.6584, 126.832], "부천": [37.5035, 126.766], "안양": [37.3943, 126.9568], "화성": [37.1995, 126.8312], "평택": [36.9921, 127.1129],
+  "부산": [35.1796, 129.0756], "대구": [35.8714, 128.6014], "대전": [36.3504, 127.3845], "광주": [35.1595, 126.8526], "울산": [35.5384, 129.3114],
+  "세종": [36.48, 127.289], "청주": [36.6424, 127.489], "천안": [36.8151, 127.1139], "전주": [35.8242, 127.148], "창원": [35.2281, 128.6811],
+  "포항": [36.019, 129.3435], "김해": [35.2285, 128.8894], "춘천": [37.8813, 127.7298], "원주": [37.3422, 127.9202], "강릉": [37.7519, 128.8761]
+};
+
+async function originCoords(trip) {
+  if (trip.originCoord) return trip.originCoord;
+  const o = originCity(trip);
+  const key = Object.keys(CITY_COORDS).find(k => o.includes(k));
+  if (key) return (trip.originCoord = { lat: CITY_COORDS[key][0], lng: CITY_COORDS[key][1] });
+  try {
+    const r = await window.RoutyAI.searchPlaces(o, null, { limit: 1 });
+    if (r && r[0]) return (trip.originCoord = { lat: r[0].lat, lng: r[0].lng });
+  } catch (e) {}
+  return null;
+}
+
+function destCenter(trip) {
+  const pts = trip.places.filter(p => hasCoords(p) && p.category !== "transit");
+  return medianCenter(pts.length ? pts : trip.places.filter(hasCoords));
+}
+
+// 직선거리 × 도로 계수 ÷ 평균 속도 + 2시간 넘으면 휴게소 20분 (예상치, 서울→경주 약 4시간 30분)
+function estimateDriveMin(a, b) {
+  if (!a || !b) return null;
+  const km = distanceMeters(a, b) / 1000 * 1.25;
+  const min = km / 85 * 60 + 15; // 고속도로 위주 평균 속도 + 도심 진출입
+  return Math.round((min + (min > 120 ? 20 : 0)) / 5) * 5;
+}
+
+function driveBlockHtml(trip, day) {
+  if (!trip || trip.transport !== "car" || tripKind(trip) !== "inland") return "";
+  const lastDay = trip.days || 1;
+  const isOut = day === 1, isBack = day === lastDay && lastDay > 1;
+  if (!isOut && !isBack) return "";
+  const origin = originCity(trip);
+  const dest = (trip.destination || "").split(/[\/,·]/)[0].trim();
+  if (!dest || dest.includes(origin) || origin.includes(dest)) return "";
+  const dv = trip.drive || {};
+  const est = dv.minutes;
+  const date = getTripDate(trip, day);
+  const when = date ? `${date.getMonth() + 1}/${date.getDate()}` : "";
+  const key = `drive-${trip.id}`;
+  const open = expandedFlights.has(key);
+  const info = isOut
+    ? (dv.dep ? `${dv.dep} 집 출발 → ${dv.arr || "?"} 도착 예정` : `${origin} → ${dest}${est ? ` · 약 ${formatMinutes(est)}` : ""}`)
+    : (dv.backDep ? `${dv.backDep} 출발 → ${dv.backArr || "?"} 집 도착 예정` : `${dest} → ${origin}${est ? ` · 약 ${formatMinutes(est)}` : ""}`);
+  const panel = open && isOut ? `
+    <div class="stay-panel flight-panel rail-panel drive-panel">
+      <div class="tpl-grid drive-grid">
+        <div class="form-group"><label for="drive-dep">집 출발 (Day 1)</label><input type="time" id="drive-dep" value="${esc(dv.dep || "")}"></div>
+        <div class="form-group"><label for="drive-back">현지 출발 (Day ${lastDay}, 선택)</label><input type="time" id="drive-back" value="${esc(dv.backDep || "")}"></div>
+        <div class="form-group"><label>운전 시간 (분)</label><input type="number" id="drive-min" min="10" max="900" step="5" value="${est || ""}" placeholder="자동"></div>
+      </div>
+      <div class="stay-hint" id="drive-preview">${est ? `예상 운전 시간 약 ${formatMinutes(est)} (휴게소 포함, 교통 상황에 따라 달라요). 실제 시간은 아래 네이버 지도로 확인하고 고쳐 주세요.` : "운전 시간을 계산하는 중…"}</div>
+      <div class="stay-links">
+        <button class="stay-link" data-action="drivenaver"><b>네이버 지도</b><small>실제 소요시간 보기</small></button>
+        <button class="stay-link main" data-action="drivefit"><b>이 시간에 맞춰 일정 짜기</b><small>첫날 도착 뒤부터 · 마지막 날 출발 전까지</small></button>
+      </div>
+    </div>` : "";
+  return `
+    <div class="move-connector rail-block">${window.icon("car", 15)}<span class="move-main">${isOut ? "가는 길" : "돌아오는 길"}${when ? ` · ${when}` : ""} · 자가용</span><span class="move-leg">${esc(info)}</span>
+      ${isOut ? `<button class="move-ticket" data-action="driveblock">${window.icon("calendar", 14)}${open ? "접기" : dv.dep ? "출발 시간 고치기" : "출발 시간 정하기"}</button>` : ""}</div>${panel}`;
+}
+
+async function ensureDriveEstimate(trip) {
+  if (trip.drive && trip.drive.minutes) return trip.drive.minutes;
+  const a = await originCoords(trip);
+  const b = destCenter(trip);
+  const m = estimateDriveMin(a, b);
+  if (m) { trip.drive = Object.assign({}, trip.drive, { minutes: m }); persistActiveTrip(); }
+  return m;
+}
+
+async function openDriveNaver() {
+  const trip = state.activeTrip;
+  const a = await originCoords(trip);
+  const b = destCenter(trip);
+  if (!a || !b) { showToast("출발 도시 위치를 찾지 못했어요.", 3000); return; }
+  const from = { lat: a.lat, lng: a.lng, name: originCity(trip) };
+  const to = { lat: b.lat, lng: b.lng, name: (trip.destination || "").split(/[\/,·]/)[0] };
+  if (isTouchDevice()) location.href = naverRouteUrl(from, to, "car");
+  else window.open(`https://map.kakao.com/link/to/${encodeURIComponent(to.name)},${to.lat},${to.lng}`, "_blank", "noopener");
+}
+
+async function fitTripToDrive() {
+  const trip = state.activeTrip;
+  const $ = id => document.getElementById(id);
+  const dep = $("drive-dep").value;
+  const backDep = $("drive-back").value;
+  const typed = parseInt($("drive-min").value, 10);
+  const minutes = typed > 0 ? typed : await ensureDriveEstimate(trip);
+  if (!dep && !backDep) { showToast("집 출발 시각이나 현지 출발 시각 중 하나는 넣어 주세요.", 3500); return; }
+  if (!minutes) { showToast("운전 시간을 계산하지 못했어요. 분 단위로 직접 넣어 주세요.", 3500); return; }
+  const arr = dep ? minutesToHHMM(hhmmToMin(dep) + minutes) : "";
+  const backArr = backDep ? minutesToHHMM(hhmmToMin(backDep) + minutes) : "";
+  trip.drive = { dep, arr, backDep, backArr, minutes };
+  expandedFlights.delete(`drive-${trip.id}`);
+  const origin = originCity(trip), dest = (trip.destination || "").split(/[\/,·]/)[0].trim();
+  const lastDay = trip.days || 1;
+  const instr = {};
+  if (dep) instr[1] = `자가용으로 집(${origin})에서 ${dep}에 출발해 약 ${formatMinutes(minutes)} 운전, ${arr}경 ${dest}에 도착합니다. Day 1 첫 장소는 ${arr} 이후(주차 시간 포함 20분 여유)부터 시작하도록 일정을 다시 배치하고, 시간이 모자라면 장소를 빼거나 줄이세요. 장소 사이 이동은 car, 숙소는 유지하세요.`;
+  if (backDep && lastDay > 1) instr[lastDay] = `마지막 날 ${backDep}에 ${dest}에서 자가용으로 출발해 ${backArr}경 집(${origin})에 도착합니다. Day ${lastDay}의 마지막 장소가 ${backDep} 전에 끝나도록 줄이거나 앞당기고, 그 뒤 일정은 넣지 마세요.`;
+  const before = cloneTrip(trip);
+  const days = Object.keys(instr).map(Number).sort((a, b) => a - b);
+  if (!window.RoutyAI.hasApiKey()) {
+    if (dep) {
+      const first = trip.places.filter(p => p.day === 1)[0];
+      const st = first ? parseTimeToMinutes(first.time) : NaN;
+      const need = hhmmToMin(arr) + 20;
+      if (first && isFinite(st) && st < need) shiftDayFrom(first.id, need - st);
+    }
+    if (backDep && lastDay > 1) {
+      const dl = trip.places.filter(p => p.day === lastDay && p.category !== "hotel");
+      const end = dl.length ? (parseTimeRange(dl[dl.length - 1].time) || [0, 0])[1] : 0;
+      const limit = hhmmToMin(backDep);
+      if (dl.length && end > limit) {
+        const delta = Math.max(limit - end, 8 * 60 - parseTimeToMinutes(dl[0].time));
+        if (delta < 0) dl.forEach(p => { p.time = shiftTimeString(p.time, delta); });
+      }
+    }
+    refineUndoTrip = before;
+    renderItineraryAll();
+    persistActiveTrip();
+    setRefineMode("undo");
+    showToast(`${dep ? `${arr} 도착 예정에 맞춰 첫날을 밀었어요. ` : ""}장소를 줄이거나 바꾸는 것까지 하려면 설정에서 Gemini 키를 넣어 주세요.`, 5000);
+    return;
+  }
+  const refineBtn = document.getElementById("btn-ai-refine");
+  const form = document.getElementById("ai-refine-form");
+  form.classList.add("loading");
+  refineBtn.disabled = true;
+  const changed = new Set();
+  try {
+    for (const d of days) {
+      refineBtn.textContent = `Day ${d} 맞추는 중…`;
+      (await applyAIRefine(instr[d], d, { keepUndo: true })).forEach(id => changed.add(id));
+      renderItineraryAll();
+    }
+    refineUndoTrip = before;
+    recentlyChanged = changed;
+    renderItineraryAll();
+    persistActiveTrip();
+    setRefineMode("undo");
+    verifyCoordinates(trip.id, Array.from(changed));
+    autoPickTop(trip);
+    showToast(`${dep ? `${arr} 도착 예정` : ""}${dep && backDep ? "·" : ""}${backDep ? `${backDep} 출발` : ""}에 맞춰 일정을 다시 짰어요. 마음에 안 들면 '되돌리기'를 누르세요.`, 5000);
+  } catch (e) {
+    renderItineraryAll();
+    persistActiveTrip();
+    showToast(e.message || "일정을 다시 짜지 못했어요.", 5000);
+  } finally {
+    refineBtn.disabled = false;
+    form.classList.remove("loading");
+    if (refineBtn.dataset.mode !== "undo") setRefineMode("normal");
+  }
 }
 
 // --- 항공권: 날짜·인원·구간을 채운 검색 화면 열기 ---
@@ -4194,7 +4374,7 @@ function renderTimeline() {
   dayHeader.textContent = `${date ? formatShortDate(date) + " · " : ""}${dayPlaces.length}곳 · ${costLabel(state.activeTrip, state.activeTripDay)}`;
   container.appendChild(dayHeader);
   const railDay = state.activeTripDay;
-  const railHtml = railBlockHtml(state.activeTrip, railDay);
+  const railHtml = railBlockHtml(state.activeTrip, railDay) || driveBlockHtml(state.activeTrip, railDay);
   if (railHtml && railDay === 1) container.insertAdjacentHTML("beforeend", railHtml);
 
   dayPlaces.forEach((place, index) => {
