@@ -146,6 +146,7 @@
       `- 소비 성향: ${BUDGET_LABELS[input.budget] || "보통"}`,
       budgetPlanLine(input.budgetPlan, input.people),
       `- 선호 스타일: ${styles}`,
+      input.wake ? `- 기상 시간: 매일 ${input.wake}에 일어납니다. 준비·아침 식사와 숙소에서 첫 장소까지 이동을 고려해 매일 첫 일정은 기상 1시간 이상 뒤에 시작하세요 (첫날 이동 일정이 따로 정해져 있으면 그것을 우선).` : "",
       dietLine(),
       input.request ? `- 추가 요청: ${input.request}` : "",
       OUTPUT_SPEC
@@ -163,6 +164,7 @@
       spending: BUDGET_LABELS[trip.budget] || "보통",
       budgetPlan: budgetPlanLine(trip.budgetPlan, trip.people) || null,
       startDate: trip.startDate || null,
+      wakeTimes: trip.wake || null,
       places: trip.places.map(p => ({
         day: p.day, time: p.time, name: p.name, searchName: p.searchName, category: p.category,
         lat: p.lat, lng: p.lng, description: p.description, price: p.price, priceUnit: p.priceUnit, move: p.move

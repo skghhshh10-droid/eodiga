@@ -1047,6 +1047,7 @@ function setupPlannerForm() {
       people: parseInt(peopleSel.value, 10) || 1,
       transport: (document.querySelector("#transport-picker .transport-opt.active") || {}).dataset?.transport || "auto",
       startDate: document.getElementById("input-start-date").value,
+      wake: document.getElementById("input-wake").value || "",
       request: document.getElementById("input-request").value.trim(),
       styles: Array.from(document.querySelectorAll(".style-tags-container .style-tag.active")).map(t => t.getAttribute("data-style"))
     };
@@ -1122,6 +1123,7 @@ async function runGeneration(input) {
     people: input.people,
     transport: input.transport || "auto",
     startDate: input.startDate,
+    wake: input.wake ? Object.fromEntries(Array.from({ length: input.days }, (_, i) => [i + 1, input.wake])) : undefined,
     request: input.request,
     genInput: input,
     createdAt: Date.now()
@@ -1739,6 +1741,7 @@ function deletePlaceById(placeId) {
 // 타임라인 / 상세 모달 버튼 공통 처리
 function setupPlaceActionDelegation() {
   document.addEventListener("click", (e) => {
+    if (e.target.closest("[data-action=wake]") && state.activeTrip) { e.stopPropagation(); openWakeDialog(); return; }
     const dvb = e.target.closest("[data-action=driveblock], [data-action=drivefit], [data-action=drivenaver]");
     if (dvb && state.activeTrip) {
       e.stopPropagation();
@@ -2182,7 +2185,7 @@ function formatMinutes(m) {
 
 
 
-const APP_VERSION = "v38";
+const APP_VERSION = "v39";
 
 // --- 식성: 매운 음식·못 먹는 음식 ---
 const SPICY_RE = /개미집|낙곱새|엽기|배떡|청년다방|불타는|홍짜장|교동짬뽕|마라|훠궈|떡볶이|엽떡|짬뽕|닭발|쭈꾸미|주꾸미|낙지|매운|불닭|아구찜|아귀찜|해물찜|닭갈비|찜닭|김치찜|김치찌개|부대찌개|육개장|감자탕|탄탄|쓰촨|사천|똠얌|커리|카레|태국 음식|인도 음식|麻辣|火锅|辣|spicy|sichuan|szechuan|hot ?pot|curry|thai|indian/i;
@@ -2875,6 +2878,109 @@ async function fitTripToDrive() {
     verifyCoordinates(trip.id, Array.from(changed));
     autoPickTop(trip);
     showToast(`${dep ? `${arr} 도착 예정` : ""}${dep && backDep ? "·" : ""}${backDep ? `${backDep} 출발` : ""}에 맞춰 일정을 다시 짰어요. 마음에 안 들면 '되돌리기'를 누르세요.`, 5000);
+  } catch (e) {
+    renderItineraryAll();
+    persistActiveTrip();
+    showToast(e.message || "일정을 다시 짜지 못했어요.", 5000);
+  } finally {
+    refineBtn.disabled = false;
+    form.classList.remove("loading");
+    if (refineBtn.dataset.mode !== "undo") setRefineMode("normal");
+  }
+}
+
+
+// --- 날마다 기상 시간: 그 시간에 맞춰 그날 일정 다시 짜기 ---
+function openWakeDialog() {
+  const trip = state.activeTrip;
+  const day = state.activeTripDay;
+  const cur = (trip.wake || {})[day] || "08:00";
+  let ov = document.getElementById("wake-overlay");
+  if (!ov) {
+    ov = document.createElement("div");
+    ov.id = "wake-overlay";
+    ov.className = "modal-overlay";
+    ov.innerHTML = `
+      <div class="place-edit-modal wake-modal">
+        <div class="checklist-modal-header"><h3 id="wake-title">기상 시간</h3><button class="btn-close-modal" id="wake-close" aria-label="닫기">✕</button></div>
+        <div class="place-edit-body">
+          <p class="budget-help">일어나는 시간에 맞춰 준비·아침 식사와 숙소에서 이동하는 시간을 두고 그날 첫 일정을 시작해요.</p>
+          <div class="form-group"><label for="wake-time">일어나는 시간</label><input type="time" id="wake-time"></div>
+          <label class="check-row"><input type="checkbox" id="wake-all"> 모든 날에 같은 시간 적용</label>
+          <div class="wake-presets">${["06:30", "07:30", "08:30", "09:30", "10:30"].map(t => `<button type="button" class="seg-btn" data-wake="${t}">${t}</button>`).join("")}</div>
+        </div>
+        <div class="drawer-actions" style="padding: 0 20px 20px;">
+          <button class="btn btn-sm btn-secondary" id="wake-cancel">취소</button>
+          <button class="btn btn-sm btn-primary" id="wake-apply">이 시간에 맞춰 일정 짜기</button>
+        </div>
+      </div>`;
+    document.body.appendChild(ov);
+    const close = () => ov.classList.remove("active");
+    ov.addEventListener("click", e => { if (e.target === ov) close(); });
+    ov.querySelector("#wake-close").addEventListener("click", close);
+    ov.querySelector("#wake-cancel").addEventListener("click", close);
+    ov.querySelectorAll("[data-wake]").forEach(b => b.addEventListener("click", () => { ov.querySelector("#wake-time").value = b.dataset.wake; }));
+    ov.querySelector("#wake-apply").addEventListener("click", () => {
+      const v = ov.querySelector("#wake-time").value;
+      if (!v) return;
+      close();
+      applyWake(v, ov.querySelector("#wake-all").checked);
+    });
+  }
+  ov.querySelector("#wake-title").textContent = `Day ${day} 기상 시간`;
+  ov.querySelector("#wake-time").value = cur;
+  ov.querySelector("#wake-all").checked = false;
+  ov.classList.add("active");
+}
+
+async function applyWake(time, all) {
+  const trip = state.activeTrip;
+  const totalDays = trip.days || 1;
+  const days = all ? Array.from({ length: totalDays }, (_, i) => i + 1) : [state.activeTripDay];
+  trip.wake = Object.assign({}, trip.wake);
+  days.forEach(d => { trip.wake[d] = time; });
+  const before = cloneTrip(trip);
+  const start = minutesToHHMM(hhmmToMin(time) + 60);
+  // 이동(역·공항·렌터카 등)으로 시작이 정해진 날은 그 장소를 건드리지 않음
+  const fixed = p => p.intercity || (p.category === "transit" && STOP_RE.test(p.name));
+  if (!window.RoutyAI.hasApiKey()) {
+    days.forEach(d => {
+      const list = trip.places.filter(p => p.day === d && !fixed(p) && p.category !== "hotel");
+      if (!list.length) return;
+      const st = parseTimeToMinutes(list[0].time);
+      if (!isFinite(st) || st >= 24 * 60) return;
+      const delta = hhmmToMin(start) - st;
+      if (delta) list.forEach(p => { p.time = shiftTimeString(p.time, delta); });
+    });
+    refineUndoTrip = before;
+    renderItineraryAll();
+    persistActiveTrip();
+    setRefineMode("undo");
+    showToast(`${days.length > 1 ? "모든 날" : `Day ${days[0]}`} 첫 일정을 ${start}에 맞춰 옮겼어요. 장소를 늘리거나 줄이려면 설정에서 Gemini 키를 넣어 주세요.`, 5000);
+    return;
+  }
+  const refineBtn = document.getElementById("btn-ai-refine");
+  const form = document.getElementById("ai-refine-form");
+  form.classList.add("loading");
+  refineBtn.disabled = true;
+  const changed = new Set();
+  try {
+    for (const d of days) {
+      refineBtn.textContent = `Day ${d} 맞추는 중…`;
+      const instr = `Day ${d}에는 ${time}에 일어납니다. 준비·아침 식사와 숙소에서 첫 장소까지 이동 시간을 고려해 첫 일정은 ${start} 이후에 시작하도록 그날 일정을 다시 짜 주세요. ` +
+        `늦게 일어나 시간이 모자라면 덜 중요한 장소를 빼거나 줄이고, 일찍 일어나 시간이 남으면 근처 장소를 하나 더 넣어도 됩니다. ` +
+        `그날 맨 앞이나 맨 끝의 역·공항·터미널·렌터카 장소와 숙소는 이름·시간 그대로 두세요.`;
+      (await applyAIRefine(instr, d, { keepUndo: true })).forEach(id => changed.add(id));
+      renderItineraryAll();
+    }
+    refineUndoTrip = before;
+    recentlyChanged = changed;
+    renderItineraryAll();
+    persistActiveTrip();
+    setRefineMode("undo");
+    verifyCoordinates(trip.id, Array.from(changed));
+    autoPickTop(trip);
+    showToast(`${days.length > 1 ? "모든 날" : `Day ${days[0]}`}을 ${time} 기상에 맞춰 다시 짰어요. 마음에 안 들면 '되돌리기'를 누르세요.`, 5000);
   } catch (e) {
     renderItineraryAll();
     persistActiveTrip();
@@ -4372,6 +4478,12 @@ function renderTimeline() {
   dayHeader.className = "day-summary-line";
   const date = getTripDate(state.activeTrip, state.activeTripDay);
   dayHeader.textContent = `${date ? formatShortDate(date) + " · " : ""}${dayPlaces.length}곳 · ${costLabel(state.activeTrip, state.activeTripDay)}`;
+  const wakeNow = (state.activeTrip.wake || {})[state.activeTripDay];
+  const wakeBtn = document.createElement("button");
+  wakeBtn.className = "wake-chip";
+  wakeBtn.setAttribute("data-action", "wake");
+  wakeBtn.innerHTML = `⏰ ${wakeNow ? `${esc(wakeNow)} 기상` : "기상 시간"}`;
+  dayHeader.appendChild(wakeBtn);
   container.appendChild(dayHeader);
   const railDay = state.activeTripDay;
   const railHtml = railBlockHtml(state.activeTrip, railDay) || driveBlockHtml(state.activeTrip, railDay);
