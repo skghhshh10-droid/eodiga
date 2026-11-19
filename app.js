@@ -1738,6 +1738,8 @@ function deletePlaceById(placeId) {
 // 타임라인 / 상세 모달 버튼 공통 처리
 function setupPlaceActionDelegation() {
   document.addEventListener("click", (e) => {
+    const gf = e.target.closest("[data-action=groundfit]");
+    if (gf && state.activeTrip) { e.stopPropagation(); openGroundFit(); return; }
     const icm = e.target.closest("[data-action=icmode]");
     if (icm && state.activeTrip) {
       e.stopPropagation();
@@ -2142,7 +2144,7 @@ function formatMinutes(m) {
 
 
 
-const APP_VERSION = "v34";
+const APP_VERSION = "v35";
 
 // --- 식성: 매운 음식·못 먹는 음식 ---
 const SPICY_RE = /개미집|낙곱새|엽기|배떡|청년다방|불타는|홍짜장|교동짬뽕|마라|훠궈|떡볶이|엽떡|짬뽕|닭발|쭈꾸미|주꾸미|낙지|매운|불닭|아구찜|아귀찜|해물찜|닭갈비|찜닭|김치찜|김치찌개|부대찌개|육개장|감자탕|탄탄|쓰촨|사천|똠얌|커리|카레|태국 음식|인도 음식|麻辣|火锅|辣|spicy|sichuan|szechuan|hot ?pot|curry|thai|indian/i;
@@ -2445,6 +2447,8 @@ function railBlockHtml(trip, day) {
     ${open ? `<div class="stay-panel flight-panel rail-panel">
       ${modeBtns}
       <div class="stay-links">${sites.map(x => `<button class="stay-link" data-action="railsite" data-day="${day}" data-site="${x.k}"><b>${x.label}</b><small>${x.sub}</small></button>`).join("")}</div>
+      ${ic ? `${ic.times && (ic.times.out.arr || (ic.times.ret && ic.times.ret.dep)) ? `<div class="ff-booked">${ic.times.out.arr ? `<div>🎫 가는 편 ${ic.times.out.no ? `<b>${esc(ic.times.out.no)}</b> ` : ""}${esc(ic.from)} ${esc(ic.times.out.dep || "?")} → ${esc(ic.stop)} ${esc(ic.times.out.arr)}</div>` : ""}${ic.times.ret && ic.times.ret.dep ? `<div>🎫 오는 편 ${ic.times.ret.no ? `<b>${esc(ic.times.ret.no)}</b> ` : ""}${esc(ic.stop)} ${esc(ic.times.ret.dep)} → ${esc(ic.from)} ${esc(ic.times.ret.arr || "?")}</div>` : ""}</div>` : ""}
+      <button class="btn btn-sm ff-open" data-action="groundfit" data-day="${day}">${window.icon("calendar", 16)}${ic.times ? "예매 시간 고치기" : "예매 시간 넣고 일정 맞추기"}</button>` : ""}
       <div class="stay-hint">${ic ? "" : "수단을 고르면 타는 곳·내리는 곳에 맞춰 첫날 시작과 마지막 날 끝이 바뀌어요. "}예매 사이트는 역·날짜를 미리 채울 수 없어서, 누르면 '${when} ${esc(icFrom)} → ${esc(icTo)}'를 복사해 두고 안내해요.</div>
     </div>` : ""}`;
 }
@@ -2791,8 +2795,11 @@ function openFlightFit(place) {
   const trip = state.activeTrip;
   const ft = flightTrip(trip, place);
   if (!ft) return;
+  ft.kind = "flight";
+  ft.est = { out: (ft.out.place && ft.out.place.move && ft.out.place.move.minutes) || 120, ret: (ft.ret && ft.ret.place && ft.ret.place.move && ft.ret.place.move.minutes) || 120 };
   flightFitFt = ft;
   const $ = id => document.getElementById(id);
+  setFitModalTexts("flight");
   const f = trip.flights || {};
   const d = x => x && x.date ? ` · ${x.date.getMonth() + 1}/${x.date.getDate()}` : "";
   $("ff-out-title").textContent = `가는 편 ${ft.out.from} → ${ft.out.to}${d(ft.out)} (Day ${ft.out.day})`;
@@ -2800,6 +2807,159 @@ function openFlightFit(place) {
   $("ff-ret").style.display = ft.ret ? "" : "none";
   if (ft.ret) $("ff-ret-title").textContent = `오는 편 ${ft.ret.from} → ${ft.ret.to}${d(ft.ret)} (Day ${ft.ret.day})`;
   $("flight-fit-overlay").classList.add("active");
+}
+
+function setFitModalTexts(kind) {
+  const $ = id => document.getElementById(id);
+  const ground = kind === "ground";
+  $("ff-heading").textContent = ground ? "예매한 기차·버스 시간" : "예약한 항공편 시간";
+  $("ff-help").innerHTML = ground
+    ? "예매한 시간을 넣거나 '자동으로 정하기'를 누르면, 첫날은 도착 뒤부터·마지막 날은 출발 전에 끝나도록 일정을 다시 맞춰요."
+    : "고른 항공편의 시간을 넣으면 첫날은 도착 뒤부터, 마지막 날은 공항에 늦지 않게 일정을 AI가 다시 짜요. 시간은 모두 <b>현지 시각</b>이에요.";
+  document.querySelectorAll(".ff-no-label").forEach(l => { l.textContent = ground ? "열차·버스 번호 (선택)" : "편명 (선택)"; });
+  $("ff-out-no").placeholder = ground ? "예: KTX 011" : "예: 7C1301";
+  $("ff-ret-no").placeholder = ground ? "예: KTX 038" : "예: 7C1302";
+  $("ff-mode-manual").classList.add("on");
+  $("ff-mode-auto").classList.remove("on");
+  $("ff-auto-note").textContent = "";
+}
+
+// 일정에 맞는 시간 자동 계산: 첫날 첫 일정 30분 전 도착, 마지막 날 마지막 일정 끝나고 40분 뒤 출발
+function autoFitTimes(ft) {
+  const trip = state.activeTrip;
+  const round5 = m => Math.round(m / 5) * 5;
+  const isEdge = p => p.intercity || (p.category === "transit" && STOP_RE.test(p.name));
+  const out = {}, ret = {};
+  const d1 = trip.places.filter(p => p.day === ft.out.day && !isEdge(p));
+  const firstStart = d1.length ? parseTimeToMinutes(d1[0].time) : 10 * 60;
+  const lead = ft.kind === "flight" ? 120 : 30; // 비행기는 입국·공항 이동 포함
+  out.arr = minutesToHHMM(round5((isFinite(firstStart) && firstStart < 1440 ? firstStart : 600) - lead));
+  out.dep = minutesToHHMM(round5(hhmmToMin(out.arr) - (ft.est.out || 120)));
+  if (ft.ret) {
+    const dl = trip.places.filter(p => p.day === ft.ret.day && !isEdge(p) && p.category !== "hotel");
+    const lastEnd = dl.length ? ((parseTimeRange(dl[dl.length - 1].time) || [0, 17 * 60])[1]) : 17 * 60;
+    const tail = ft.kind === "flight" ? 180 : 40; // 비행기는 공항 이동 + 출국 수속
+    ret.dep = minutesToHHMM(Math.ceil((lastEnd + tail) / 10) * 10);
+    ret.arr = minutesToHHMM(round5(hhmmToMin(ret.dep) + (ft.est.ret || 120)));
+  }
+  return { out, ret };
+}
+
+// 국내 기차·버스: 예매 시간 입력 창 열기
+function openGroundFit() {
+  const trip = state.activeTrip;
+  const ic = trip.intercity;
+  if (!ic) { showToast("먼저 '가는 길'에서 KTX·기차 또는 고속버스를 골라 주세요.", 3500); return; }
+  const outP = trip.places.find(p => p.intercity === "out");
+  const backP = trip.places.find(p => p.intercity === "back");
+  const destStops = cityStops((trip.destination || "").split(/[\/,·]/)[0]);
+  const est = destStops ? (ic.mode === "train" ? destStops.t : destStops.b) : null;
+  const ft = {
+    kind: "ground",
+    out: { from: ic.from, to: ic.stop, day: 1, date: getTripDate(trip, 1), place: outP },
+    ret: backP ? { from: ic.stop, to: ic.from, day: backP.day, date: getTripDate(trip, backP.day), place: backP } : null,
+    est: { out: (est && est[0]) || 120, ret: (est && est[0]) || 120 }
+  };
+  flightFitFt = ft;
+  const $ = id => document.getElementById(id);
+  setFitModalTexts("ground");
+  const d = x => x && x.date ? ` · ${x.date.getMonth() + 1}/${x.date.getDate()}` : "";
+  $("ff-out-title").textContent = `가는 ${ic.service} ${ft.out.from} → ${ft.out.to}${d(ft.out)}`;
+  const t = ic.times || {};
+  ["no", "dep", "arr"].forEach(k => { $(`ff-out-${k}`).value = (t.out && t.out[k]) || ""; $(`ff-ret-${k}`).value = (t.ret && t.ret[k]) || ""; });
+  $("ff-ret").style.display = ft.ret ? "" : "none";
+  if (ft.ret) $("ff-ret-title").textContent = `오는 ${ic.service} ${ft.ret.from} → ${ft.ret.to}${d(ft.ret)}`;
+  $("flight-fit-overlay").classList.add("active");
+}
+
+// 기차·버스 예매 시간에 맞춰 역·터미널 시간과 첫날·마지막 날 일정 조율
+async function fitTripToGround(out, ret) {
+  const trip = state.activeTrip;
+  const ic = trip.intercity;
+  ic.times = { out, ret };
+  const before = cloneTrip(trip);
+  const outP = trip.places.find(p => p.intercity === "out");
+  const backP = trip.places.find(p => p.intercity === "back");
+  if (outP && out.arr) {
+    const a = hhmmToMin(out.arr);
+    outP.time = `${out.arr} - ${minutesToHHMM(a + 20)}`;
+    if (outP.move) { outP.move.note = out.no || ""; const dm = a - hhmmToMin(out.dep); if (out.dep && dm > 0) outP.move.minutes = dm; }
+    outP.description = `${out.no ? out.no + " · " : ""}${out.dep ? `${ic.from} ${out.dep} 출발 → ` : ""}${out.arr} 도착`;
+  }
+  if (backP && ret && ret.dep) {
+    const dp = hhmmToMin(ret.dep);
+    backP.time = `${minutesToHHMM(dp - 20)} - ${ret.dep}`;
+    backP.description = `${ret.no ? ret.no + " · " : ""}${ret.dep} 출발${ret.arr ? ` → ${ic.from} ${ret.arr} 도착` : ""}`;
+  }
+  const instr = {};
+  if (out.arr) instr[1] = `예매한 ${ic.service}: ${ic.from} ${out.dep || ""} 출발 → ${ic.stop} ${out.arr} 도착. Day 1 맨 앞의 "${outP ? outP.name : ic.stop + " 도착"}"(category transit, time "${out.arr} - ${minutesToHHMM(hhmmToMin(out.arr) + 20)}")은 그대로 두고, ${ic.stop}에서 다음 장소까지 이동 시간을 고려해 그 뒤로 일정을 다시 배치하세요. 시간이 모자라면 장소를 빼거나 줄이고, 숙소는 유지하세요.`;
+  if (ret && ret.dep && backP) instr[backP.day] = `예매한 ${ic.service}: ${ic.stop} ${ret.dep} 출발 → ${ic.from}${ret.arr ? ` ${ret.arr} 도착` : ""}. Day ${backP.day} 맨 끝의 "${backP.name}"(category transit, time "${minutesToHHMM(hhmmToMin(ret.dep) - 20)} - ${ret.dep}")은 그대로 두고, 그 전 장소들이 ${ic.stop}까지 이동 시간을 포함해 ${minutesToHHMM(hhmmToMin(ret.dep) - 20)} 전에 끝나도록 줄이거나 앞당기세요. 그 뒤 일정은 넣지 마세요.`;
+  const days = Object.keys(instr).map(Number).sort((a, b) => a - b);
+  const markEdges = () => {
+    const d1 = trip.places.filter(p => p.day === 1);
+    const o = d1.find(p => p.category === "transit" && p.name.includes(ic.stop));
+    if (o) { o.intercity = "out"; o.coordChecked = true; }
+    if (backP) {
+      const dl = trip.places.filter(p => p.day === backP.day && p.category === "transit" && p.name.includes(ic.stop));
+      if (dl.length) { dl[dl.length - 1].intercity = "back"; dl[dl.length - 1].coordChecked = true; }
+    }
+  };
+  if (!window.RoutyAI.hasApiKey()) {
+    // AI 없이: 첫날은 도착 뒤로 밀고, 마지막 날은 출발 전에 끝나게 앞당기기
+    if (out.arr) {
+      const first = trip.places.filter(p => p.day === 1 && !p.intercity)[0];
+      const st = first ? parseTimeToMinutes(first.time) : NaN;
+      const need = hhmmToMin(out.arr) + 30;
+      if (first && isFinite(st) && st < need) shiftDayFrom(first.id, need - st);
+    }
+    if (backP && ret && ret.dep) {
+      const dl = trip.places.filter(p => p.day === backP.day && !p.intercity && p.category !== "hotel");
+      const end = dl.length ? (parseTimeRange(dl[dl.length - 1].time) || [0, 0])[1] : 0;
+      const limit = hhmmToMin(ret.dep) - 40;
+      if (dl.length && end > limit) {
+        const firstSt = parseTimeToMinutes(dl[0].time);
+        const delta = Math.max(limit - end, 8 * 60 - firstSt);
+        if (delta < 0) dl.forEach(p => { p.time = shiftTimeString(p.time, delta); });
+      }
+    }
+    sortTripPlaces(trip, 1);
+    refineUndoTrip = before;
+    renderItineraryAll();
+    persistActiveTrip();
+    setRefineMode("undo");
+    showToast("예매 시간에 맞춰 첫날·마지막 날 시간을 옮겼어요. 장소를 줄이거나 바꾸는 것까지 하려면 설정에서 Gemini 키를 넣어 주세요.", 5000);
+    return;
+  }
+  const refineBtn = document.getElementById("btn-ai-refine");
+  const form = document.getElementById("ai-refine-form");
+  form.classList.add("loading");
+  refineBtn.disabled = true;
+  const changed = new Set();
+  try {
+    for (let i = 0; i < days.length; i++) {
+      refineBtn.textContent = `Day ${days[i]} 맞추는 중…`;
+      const ids = await applyAIRefine(instr[days[i]], days[i], { keepUndo: true });
+      ids.forEach(id => changed.add(id));
+      markEdges();
+      renderItineraryAll();
+    }
+    refineUndoTrip = before;
+    recentlyChanged = changed;
+    renderItineraryAll();
+    persistActiveTrip();
+    setRefineMode("undo");
+    verifyCoordinates(trip.id, Array.from(changed));
+    autoPickTop(trip);
+    showToast(`예매 시간에 맞춰 Day ${days.join("·Day ")} 일정을 다시 맞췄어요. 마음에 안 들면 '되돌리기'를 누르세요.`, 5000);
+  } catch (e) {
+    renderItineraryAll();
+    persistActiveTrip();
+    showToast(e.message || "일정을 다시 맞추지 못했어요.", 5000);
+  } finally {
+    refineBtn.disabled = false;
+    form.classList.remove("loading");
+    if (refineBtn.dataset.mode !== "undo") setRefineMode("normal");
+  }
 }
 
 function hhmmToMin(v) {
@@ -2815,6 +2975,21 @@ function setupFlightFit() {
   $("btn-close-flight-fit").addEventListener("click", close);
   $("btn-cancel-flight-fit").addEventListener("click", close);
   overlay.addEventListener("click", e => { if (e.target === overlay) close(); });
+  $("ff-mode-manual").addEventListener("click", () => {
+    $("ff-mode-manual").classList.add("on"); $("ff-mode-auto").classList.remove("on");
+    $("ff-auto-note").textContent = "";
+  });
+  $("ff-mode-auto").addEventListener("click", () => {
+    const ft = flightFitFt;
+    if (!ft) return;
+    const t = autoFitTimes(ft);
+    $("ff-out-dep").value = t.out.dep || ""; $("ff-out-arr").value = t.out.arr || "";
+    if (ft.ret) { $("ff-ret-dep").value = t.ret.dep || ""; $("ff-ret-arr").value = t.ret.arr || ""; }
+    $("ff-mode-auto").classList.add("on"); $("ff-mode-manual").classList.remove("on");
+    $("ff-auto-note").textContent = ft.kind === "flight"
+      ? "일정에 맞는 시간을 채웠어요. 이 시간대 항공편을 예매 사이트에서 고른 뒤 실제 시간으로 고쳐 주세요."
+      : "일정에 맞는 시간을 채웠어요. 이 시간대 표를 예매하고, 실제 시간이 다르면 고쳐 주세요.";
+  });
   $("btn-apply-flight-fit").addEventListener("click", () => {
     const ft = flightFitFt;
     if (!ft) return;
@@ -2826,7 +3001,8 @@ function setupFlightFit() {
       return;
     }
     close();
-    fitTripToFlights(out, ret);
+    if (ft.kind === "ground") fitTripToGround(out, ret);
+    else fitTripToFlights(out, ret);
   });
 }
 
