@@ -2027,7 +2027,7 @@ function formatMinutes(m) {
 
 
 
-const APP_VERSION = "v24";
+const APP_VERSION = "v25";
 
 // --- 식성: 매운 음식·못 먹는 음식 ---
 const SPICY_RE = /개미집|낙곱새|엽기|배떡|청년다방|불타는|홍짜장|교동짬뽕|마라|훠궈|떡볶이|엽떡|짬뽕|닭발|쭈꾸미|주꾸미|낙지|매운|불닭|아구찜|아귀찜|해물찜|닭갈비|찜닭|김치찜|김치찌개|부대찌개|육개장|감자탕|탄탄|쓰촨|사천|똠얌|커리|카레|태국 음식|인도 음식|麻辣|火锅|辣|spicy|sichuan|szechuan|hot ?pot|curry|thai|indian/i;
@@ -2462,15 +2462,9 @@ async function autoPickTopInner(trip, opts = {}) {
   for (let i = 0; i < targets.length; i++) {
     const place = targets[i];
     if (findTripById(trip.id) !== trip || !trip.places.includes(place)) continue;
-    const type = place.category === "cafe" ? "cafe" : "restaurant";
     const center = { lat: place.lat, lng: place.lng };
-    const cacheKey = `${center.lat.toFixed(4)},${center.lng.toFixed(4)},${type}`;
     try {
-      let items = topCache.get(cacheKey);
-      if (!items) {
-        items = await window.RoutyAI.placesNearby(center.lat, center.lng, { type });
-        topCache.set(cacheKey, items);
-      }
+      const { items } = await fetchTopItems(place, trip);
       place.autoTopTried = true; // 조회에 성공했을 때만 표시 (실패하면 다음에 다시 시도)
       // 식성에 안 맞는 곳은 1위 후보에서 빼고, 남는 곳이 없으면 AI가 고른 식당을 그대로 둔다
       const ranked = rankTopItems(budgetFit(items, trip.budget).filter(it => !dietConflict(it)), sort);
@@ -2522,7 +2516,7 @@ function topPanelHtml(place) {
         <button class="seg-btn ${topPanel.sort === "rating" ? "on" : ""}" data-action="topsort" data-sort="rating" data-id="${id}">별점순</button>
         <button class="seg-btn ${topPanel.sort === "count" ? "on" : ""}" data-action="topsort" data-sort="count" data-id="${id}">리뷰수순</button>
       </div>
-      <span class="top-attr">반경 1km · Google 지도</span>
+      <span class="top-attr">${topPanel.query ? `'${esc(topPanel.query)}' · ` : ""}주변 · Google 지도</span>
     </div>`;
   let body;
   if (topPanel.loading) body = `<div class="top-empty">주변 ${place.category === "cafe" ? "카페" : "식당"}를 찾는 중…</div>`;
@@ -2560,6 +2554,44 @@ function formatDistance(m) {
   return m < 1000 ? `${Math.round(m / 10) * 10}m` : `${(m / 1000).toFixed(1)}km`;
 }
 
+
+// 식당의 음식 종류: AI가 준 cuisine, 없으면 '교토 가이세키 요리 전문점 (점심)' 같은 뭉뚱그린 이름에서 뽑는다
+function topQueryOf(place, trip) {
+  if (place.topQuery !== undefined) return place.topQuery;
+  if (place.cuisine) return place.cuisine;
+  const name = place.name || "";
+  if (!/전문점|맛집|식당|요리점|레스토랑|\((아침|점심|저녁|브런치)\)|카페$/.test(name)) return "";
+  const dest = (trip && trip.destination || "").split(/[\s,·/]+/).filter(Boolean);
+  let q = name.replace(/\([^)]*\)/g, " ");
+  dest.forEach(d => { q = q.split(d).join(" "); });
+  q = q.replace(/전문점|맛집|식당가?|요리점|레스토랑|요리|정통|원조|유명한?|현지|인기|로컬|근처|주변/g, " ").replace(/\s+/g, " ").trim();
+  return q.length >= 1 && q.length <= 15 ? q : "";
+}
+
+function topCacheKey(place, trip) {
+  const c = place.topCenter || { lat: place.lat, lng: place.lng };
+  return `${c.lat.toFixed(4)},${c.lng.toFixed(4)},${place.category === "cafe" ? "cafe" : "restaurant"},${topQueryOf(place, trip)}`;
+}
+
+// 같은 음식 종류로 주변(약 2km)을 먼저 찾고, 없으면 종류 상관없이 반경 1km 인기 식당
+async function fetchTopItems(place, trip) {
+  const center = place.topCenter || { lat: place.lat, lng: place.lng };
+  const type = place.category === "cafe" ? "cafe" : "restaurant";
+  const query = topQueryOf(place, trip);
+  const key = topCacheKey(place, trip);
+  if (topCache.has(key)) return { items: topCache.get(key), query };
+  let items = [];
+  if (query) {
+    items = (await window.RoutyAI.placesText(query, center.lat, center.lng, { type }))
+      .filter(i => distanceMeters(center, i) <= 2500);
+  }
+  if (!items.length) items = await window.RoutyAI.placesNearby(center.lat, center.lng, { type });
+  topCache.set(key, items);
+  if (!place.topCenter) place.topCenter = center;
+  if (place.topQuery === undefined) place.topQuery = query;
+  return { items, query };
+}
+
 async function toggleTopPanel(placeId) {
   if (topPanel.placeId === placeId) {
     topPanel.placeId = null;
@@ -2569,23 +2601,19 @@ async function toggleTopPanel(placeId) {
   const trip = state.activeTrip;
   const place = trip.places.find(p => p.id === placeId);
   if (!place) return;
-  // 검색 기준은 처음 연 위치로 고정 (식당을 바꿔도 같은 목록을 다시 쓰도록)
-  const center = place.topCenter || { lat: place.lat, lng: place.lng };
-  const type = place.category === "cafe" ? "cafe" : "restaurant";
-  const cacheKey = `${center.lat.toFixed(4)},${center.lng.toFixed(4)},${type}`;
-  Object.assign(topPanel, { placeId, items: [], error: "", loading: !topCache.has(cacheKey), sort: window.RoutyAI.getSettings().placesSort });
-  if (topCache.has(cacheKey)) {
-    topPanel.items = topCache.get(cacheKey);
+  const cached = topCache.get(topCacheKey(place, trip));
+  Object.assign(topPanel, { placeId, items: [], error: "", loading: !cached, sort: window.RoutyAI.getSettings().placesSort, query: topQueryOf(place, trip) });
+  if (cached) {
+    topPanel.items = cached;
     renderTimeline();
     return;
   }
   renderTimeline();
   try {
-    const items = await window.RoutyAI.placesNearby(center.lat, center.lng, { type });
-    topCache.set(cacheKey, items);
-    if (!place.topCenter) place.topCenter = center;
+    const { items, query } = await fetchTopItems(place, trip);
     if (topPanel.placeId !== placeId || state.activeTrip !== trip) return;
     topPanel.items = items;
+    topPanel.query = query;
   } catch (e) {
     if (topPanel.placeId !== placeId) return;
     topPanel.error = e.message || "주변 식당을 불러오지 못했어요.";
