@@ -923,3 +923,8 @@ a.place-name-link:hover { text-decoration: underline; text-underline-offset: 3px
 .tpl-grid { display: grid; grid-template-columns: 1.4fr 1fr 1fr; gap: 10px; }
 @media (max-width: 480px) { .tpl-grid { grid-template-columns: 1fr 1fr; } .tpl-grid .form-group:first-child { grid-column: 1 / -1; } }
 #template-setup-overlay .checklist-modal-header { padding: 18px 20px 4px; }
+.ff-leg { border: 1px solid var(--border-color, rgba(0,0,0,0.1)); border-radius: 12px; padding: 10px 12px 2px; margin-bottom: 10px; }
+.ff-title { font-weight: 700; font-size: var(--fs-sm); margin-bottom: 6px; }
+.ff-open { margin-top: 10px; width: 100%; justify-content: center; display: inline-flex; align-items: center; gap: 6px; }
+.ff-booked { margin-top: 10px; font-size: var(--fs-sm); display: flex; flex-direction: column; gap: 2px; }
+#flight-fit-overlay .checklist-modal-header { padding: 18px 20px 4px; }

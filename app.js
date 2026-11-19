@@ -173,6 +173,7 @@ document.addEventListener("DOMContentLoaded", () => {
   updateAiNotice();
   setupDietInputs();
   setupTemplateSetup();
+  setupFlightFit();
 
   // Render initial explorer state
   renderExploreTab();
@@ -1310,6 +1311,52 @@ let addPlaceSearch = null;
 let editPlaceSearch = null;
 let refineUndoTrip = null;
 
+// AI 수정 요청을 적용 (scopeDay가 있으면 그날만 교체). 바뀐 장소 id 집합을 돌려준다
+async function applyAIRefine(instruction, scopeDay, opts = {}) {
+  const plan = await window.RoutyAI.refineTrip(state.activeTrip, instruction, { day: scopeDay, onProgress: opts.onProgress });
+  const t = state.activeTrip;
+  if (!opts.keepUndo) refineUndoTrip = cloneTrip(t);
+  const oldPlaces = scopeDay ? t.places.filter(p => p.day === scopeDay) : t.places;
+  const oldKeys = new Set(oldPlaces.map(p => `${p.day}|${p.name}|${p.time}`));
+  let incoming = plan.places;
+  if (scopeDay) {
+    // AI가 다른 날까지 돌려주면 그 날 것만 사용
+    const sameDay = incoming.filter(p => p.day === scopeDay);
+    if (sameDay.length) incoming = sameDay;
+    incoming.forEach(p => { p.day = scopeDay; });
+    // 그 날만 교체하고 나머지 날은 그대로
+    const merged = [];
+    let inserted = false;
+    t.places.forEach(p => {
+      if (p.day === scopeDay) {
+        if (!inserted) { merged.push(...incoming); inserted = true; }
+      } else merged.push(p);
+    });
+    if (!inserted) merged.push(...incoming);
+    t.places = merged;
+    sortTripPlaces(t, scopeDay);
+  } else {
+    // 전체 수정: 이름이 같은 장소는 기존 id·메모를 유지
+    const byName = new Map(t.places.map(p => [p.name, p]));
+    incoming.forEach(p => {
+      const prev = byName.get(p.name);
+      if (prev) {
+        p.id = prev.id;
+        if (prev.coordFixed && !p.coordMissing) { p.lat = prev.lat; p.lng = prev.lng; p.coordFixed = true; }
+      }
+    });
+    t.places = incoming;
+    // AI가 일수를 늘렸으면 반영
+    const maxDay = Math.max(...incoming.map(p => p.day));
+    if (maxDay > t.days) t.days = maxDay;
+  }
+  if (plan.summary && !scopeDay) t.summary = plan.summary;
+  if (plan.tips && plan.tips.length) t.checklistSeed = plan.tips;
+  ensureTripShape(t);
+  ensurePlacePrices(t);
+  return new Set(incoming.filter(p => !oldKeys.has(`${p.day}|${p.name}|${p.time}`)).map(p => p.id));
+}
+
 function setRefineMode(mode) {
   const btn = document.getElementById("btn-ai-refine");
   if (!btn) return;
@@ -1380,54 +1427,13 @@ function setupItineraryControls() {
     refineForm.classList.add("loading");
     const scopeDay = refineScope === "day" ? state.activeTripDay : null;
     try {
-      const plan = await window.RoutyAI.refineTrip(state.activeTrip, instruction, {
-        day: scopeDay,
+      recentlyChanged = await applyAIRefine(instruction, scopeDay, {
         onProgress: (p) => {
           if (p.phase === "writing" && p.places) refineBtn.textContent = `${p.places}곳…`;
           else if (p.phase === "thinking") refineBtn.textContent = "구상 중…";
         }
       });
       const t = state.activeTrip;
-      refineUndoTrip = cloneTrip(t);
-      const oldPlaces = scopeDay ? t.places.filter(p => p.day === scopeDay) : t.places;
-      const oldKeys = new Set(oldPlaces.map(p => `${p.day}|${p.name}|${p.time}`));
-      let incoming = plan.places;
-      if (scopeDay) {
-        // AI가 다른 날까지 돌려주면 그 날 것만 사용
-        const sameDay = incoming.filter(p => p.day === scopeDay);
-        if (sameDay.length) incoming = sameDay;
-        incoming.forEach(p => { p.day = scopeDay; });
-        // 그 날만 교체하고 나머지 날은 그대로
-        const merged = [];
-        let inserted = false;
-        t.places.forEach(p => {
-          if (p.day === scopeDay) {
-            if (!inserted) { merged.push(...incoming); inserted = true; }
-          } else merged.push(p);
-        });
-        if (!inserted) merged.push(...incoming);
-        t.places = merged;
-        sortTripPlaces(t, scopeDay);
-      } else {
-        // 전체 수정: 이름이 같은 장소는 기존 id·메모를 유지
-        const byName = new Map(t.places.map(p => [p.name, p]));
-        incoming.forEach(p => {
-          const prev = byName.get(p.name);
-          if (prev) {
-            p.id = prev.id;
-            if (prev.coordFixed && !p.coordMissing) { p.lat = prev.lat; p.lng = prev.lng; p.coordFixed = true; }
-          }
-        });
-        t.places = incoming;
-        // AI가 일수를 늘렸으면 반영
-        const maxDay = Math.max(...incoming.map(p => p.day));
-        if (maxDay > t.days) t.days = maxDay;
-      }
-      if (plan.summary && !scopeDay) t.summary = plan.summary;
-      if (plan.tips && plan.tips.length) t.checklistSeed = plan.tips;
-      ensureTripShape(t);
-      ensurePlacePrices(t);
-      recentlyChanged = new Set(incoming.filter(p => !oldKeys.has(`${p.day}|${p.name}|${p.time}`)).map(p => p.id));
       const changedCount = recentlyChanged.size;
       refineInput.value = "";
       renderItineraryAll();
@@ -1757,6 +1763,7 @@ function setupPlaceActionDelegation() {
       renderTimeline();
     }
     else if (action === "flightsite") openFlightSite(place, btn.getAttribute("data-site"));
+    else if (action === "flightfit") openFlightFit(place);
     else if (action === "stays") {
       if (expandedStays.has(place.id)) expandedStays.delete(place.id); else expandedStays.add(place.id);
       renderTimeline();
@@ -2117,7 +2124,7 @@ function formatMinutes(m) {
 
 
 
-const APP_VERSION = "v30";
+const APP_VERSION = "v31";
 
 // --- 식성: 매운 음식·못 먹는 음식 ---
 const SPICY_RE = /개미집|낙곱새|엽기|배떡|청년다방|불타는|홍짜장|교동짬뽕|마라|훠궈|떡볶이|엽떡|짬뽕|닭발|쭈꾸미|주꾸미|낙지|매운|불닭|아구찜|아귀찜|해물찜|닭갈비|찜닭|김치찜|김치찌개|부대찌개|육개장|감자탕|탄탄|쓰촨|사천|똠얌|커리|카레|태국 음식|인도 음식|麻辣|火锅|辣|spicy|sichuan|szechuan|hot ?pot|curry|thai|indian/i;
@@ -2493,7 +2500,7 @@ function flightConnectorHtml(move, to) {
   const open = expandedFlights.has(to.id);
   const btn = ft ? `<button class="move-ticket" data-action="flights" data-id="${id}">${window.icon("flight", 14)}${open ? "접기" : "항공권 찾기"}</button>` : "";
   const panel = ft && open ? flightPanelHtml(ft, id) : "";
-  return `<div class="move-connector move-flight">${window.icon("flight", 15)}<span class="move-main">비행기${mins}${cost}</span><span class="move-leg">${esc(from)} → ${esc(dest)}${codes}</span>${btn}</div>${panel}`;
+  return `<div class="move-connector move-flight">${window.icon("flight", 15)}<span class="move-main">비행기${move.note && /^[A-Z0-9]{2}\s?\d{2,4}$/.test(move.note) ? ` ${esc(move.note)}` : ""}${mins}${cost}</span><span class="move-leg">${esc(from)} → ${esc(dest)}${codes}</span>${btn}</div>${panel}`;
 }
 
 function flightPanelHtml(ft, id) {
@@ -2508,8 +2515,17 @@ function flightPanelHtml(ft, id) {
         <div class="stay-links">
           ${flightLinks(ft).map(l => `<button class="stay-link ${l.main ? "main" : ""}" data-action="flightsite" data-site="${l.key}" data-id="${id}"><b>${esc(l.label)}</b><small>${esc(l.sub)}</small></button>`).join("")}
         </div>
+        ${bookedFlightsHtml(state.activeTrip)}
+        <button class="btn btn-sm ff-open" data-action="flightfit" data-id="${id}">${window.icon("calendar", 16)}${state.activeTrip && state.activeTrip.flights ? "항공편 시간 고치기" : "예약한 항공편 시간 넣고 일정 맞추기"}</button>
         <div class="stay-hint">항공권 가격은 사이트에서 실시간으로 확인돼요. 수하물 포함 여부는 항공사마다 달라요.</div>
       </div>`;
+}
+
+function bookedFlightsHtml(trip) {
+  const f = trip && trip.flights;
+  if (!f) return "";
+  const line = (l, label) => l && (l.dep || l.arr) ? `<div>✈ ${label} ${l.no ? `<b>${esc(l.no)}</b> ` : ""}${esc(l.from)} ${esc(l.dep || "?")} → ${esc(l.to)} ${esc(l.arr || "?")}</div>` : "";
+  return `<div class="ff-booked">${line(f.out, "가는 편")}${line(f.ret, "오는 편")}</div>`;
 }
 
 // ⋯ 메뉴: 일정 전체 기준 항공권 찾기 (비행 구간이나 공항 카드로 이동해 패널 펼치기)
@@ -2536,6 +2552,118 @@ function openFlightSite(place, key) {
   if (!ft) return;
   const link = flightLinks(ft).find(l => l.key === key);
   if (link) window.open(link.url, "_blank", "noopener");
+}
+
+
+// --- 예약한 항공편 시간에 맞춰 첫날·마지막 날 다시 짜기 ---
+let flightFitFt = null;
+
+function openFlightFit(place) {
+  const trip = state.activeTrip;
+  const ft = flightTrip(trip, place);
+  if (!ft) return;
+  flightFitFt = ft;
+  const $ = id => document.getElementById(id);
+  const f = trip.flights || {};
+  const d = x => x && x.date ? ` · ${x.date.getMonth() + 1}/${x.date.getDate()}` : "";
+  $("ff-out-title").textContent = `가는 편 ${ft.out.from} → ${ft.out.to}${d(ft.out)} (Day ${ft.out.day})`;
+  ["no", "dep", "arr"].forEach(k => { $(`ff-out-${k}`).value = (f.out && f.out[k]) || ""; $(`ff-ret-${k}`).value = (f.ret && f.ret[k]) || ""; });
+  $("ff-ret").style.display = ft.ret ? "" : "none";
+  if (ft.ret) $("ff-ret-title").textContent = `오는 편 ${ft.ret.from} → ${ft.ret.to}${d(ft.ret)} (Day ${ft.ret.day})`;
+  $("flight-fit-overlay").classList.add("active");
+}
+
+function hhmmToMin(v) {
+  const m = String(v || "").match(/^(\d{1,2}):(\d{2})/);
+  return m ? parseInt(m[1], 10) * 60 + parseInt(m[2], 10) : NaN;
+}
+
+function setupFlightFit() {
+  const $ = id => document.getElementById(id);
+  const overlay = $("flight-fit-overlay");
+  if (!overlay) return;
+  const close = () => overlay.classList.remove("active");
+  $("btn-close-flight-fit").addEventListener("click", close);
+  $("btn-cancel-flight-fit").addEventListener("click", close);
+  overlay.addEventListener("click", e => { if (e.target === overlay) close(); });
+  $("btn-apply-flight-fit").addEventListener("click", () => {
+    const ft = flightFitFt;
+    if (!ft) return;
+    const read = (k, leg) => leg ? { no: $(`ff-${k}-no`).value.trim().toUpperCase(), dep: $(`ff-${k}-dep`).value, arr: $(`ff-${k}-arr`).value, from: leg.from, to: leg.to, day: leg.day } : null;
+    const out = read("out", ft.out);
+    const ret = ft.ret ? read("ret", ft.ret) : null;
+    if (!out.arr && !(ret && ret.dep)) {
+      showToast("가는 편 도착 시각이나 오는 편 출발 시각 중 하나는 넣어 주세요.", 3500);
+      return;
+    }
+    close();
+    fitTripToFlights(out, ret);
+  });
+}
+
+async function fitTripToFlights(out, ret) {
+  const trip = state.activeTrip;
+  trip.flights = { out, ret };
+  const intl = !(KOREA_CODES.has(out.from) && KOREA_CODES.has(out.to));
+  const instr = {};
+  if (out.arr) {
+    const arr = hhmmToMin(out.arr);
+    instr[out.day] = (instr[out.day] ? instr[out.day] + "\n" : "") +
+      `실제 예약한 가는 비행기: ${out.no || ""} ${out.from} ${out.dep || ""} 출발 → ${out.to} ${out.arr} 도착(현지 시각). ` +
+      `Day ${out.day} 맨 앞에 도착 공항을 category "transit", time "${out.arr} - ${minutesToHHMM(arr + (intl ? 60 : 20))}"로 넣고 move는 mode "flight", from "${out.from} 공항(${out.from})", to "${out.to} 공항(${out.to})", minutes는 시차를 고려한 실제 비행 시간, note "${out.no || "예약한 항공편"}"으로 하세요. ` +
+      `입국·짐 찾기와 공항에서 시내까지 이동 시간을 고려해 그 뒤부터 일정을 배치하고, 시간이 모자라는 장소는 빼거나 줄이세요. 숙소는 유지하세요.`;
+  }
+  if (ret && ret.dep) {
+    const dep = hhmmToMin(ret.dep);
+    const cutoff = dep - (intl ? 150 : 60);
+    instr[ret.day] = (instr[ret.day] ? instr[ret.day] + "\n" : "") +
+      `실제 예약한 오는 비행기: ${ret.no || ""} ${ret.from} ${ret.dep} 출발(현지 시각)${ret.arr ? ` → ${ret.to} ${ret.arr} 도착` : ""}. ` +
+      `${intl ? "국제선이라 출발 2시간 30분 전" : "국내선이라 출발 1시간 전"}인 ${minutesToHHMM(cutoff)}까지 공항에 도착해야 합니다. ` +
+      `Day ${ret.day} 끝에 출발 공항을 category "transit", time "${minutesToHHMM(cutoff)} - ${ret.dep}"로 넣고, 그 전 장소들은 공항까지 이동 시간을 포함해 ${minutesToHHMM(cutoff)} 전에 끝나도록 줄이거나 앞당기세요.` +
+      (ret.arr ? ` 마지막에 도착 공항을 category "transit", time "${ret.arr} - ${minutesToHHMM(hhmmToMin(ret.arr) + 30)}", move는 mode "flight", from "${ret.from} 공항(${ret.from})", to "${ret.to} 공항(${ret.to})", note "${ret.no || "예약한 항공편"}"으로 넣으세요.` : "") +
+      ` 그 뒤 일정은 넣지 마세요.`;
+  }
+  const days = Object.keys(instr).map(Number).sort((a, b) => a - b);
+  if (!window.RoutyAI.hasApiKey()) {
+    // AI 없이: 첫날만 도착 시각 뒤로 밀기
+    if (out.arr) {
+      const first = trip.places.filter(p => p.day === out.day && p.category !== "transit")[0];
+      const startMin = first ? parseTimeToMinutes(first.time) : NaN;
+      const need = hhmmToMin(out.arr) + (intl ? 120 : 60);
+      if (first && isFinite(startMin) && startMin < need) shiftDayFrom(first.id, need - startMin);
+    }
+    renderItineraryAll();
+    persistActiveTrip();
+    showToast("항공편 시간을 저장하고 첫날 일정을 도착 뒤로 밀었어요. 마지막 날까지 다시 짜려면 설정에서 Gemini 키를 넣어 주세요.", 5000);
+    return;
+  }
+  const refineBtn = document.getElementById("btn-ai-refine");
+  const form = document.getElementById("ai-refine-form");
+  form.classList.add("loading");
+  refineBtn.disabled = true;
+  let changed = new Set();
+  try {
+    for (let i = 0; i < days.length; i++) {
+      refineBtn.textContent = `Day ${days[i]} 맞추는 중…`;
+      const ids = await applyAIRefine(instr[days[i]], days[i], { keepUndo: i > 0 });
+      ids.forEach(id => changed.add(id));
+      renderItineraryAll();
+    }
+    recentlyChanged = changed;
+    renderItineraryAll();
+    persistActiveTrip();
+    setRefineMode("undo");
+    verifyCoordinates(trip.id, Array.from(changed));
+    autoPickTop(trip);
+    showToast(`항공편 시간에 맞춰 Day ${days.join("·Day ")} 일정을 다시 짰어요. 마음에 안 들면 '되돌리기'를 누르세요.`, 5000);
+  } catch (e) {
+    persistActiveTrip();
+    showToast(e.message || "일정을 다시 짜지 못했어요.", 5000);
+  } finally {
+    refineBtn.disabled = false;
+    form.classList.remove("loading");
+    if (refineBtn.dataset.mode !== "undo") setRefineMode("normal");
+  }
 }
 
 // --- 기차·고속버스 예매 연결 (국내) ---
