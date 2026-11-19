@@ -1827,7 +1827,7 @@ function setupPlaceActionDelegation() {
     if (!place) return;
     const action = btn.getAttribute("data-action");
     if (action === "map") window.open(getPlaceLinks(place).mapUrl, "_blank", "noopener");
-    else if (action === "route") window.open(getPlaceLinks(place).routeUrl, "_blank", "noopener");
+    else if (action === "route" || action === "navi") startNavigation(place);
     else if (action === "search") window.open(getPlaceLinks(place).searchUrl, "_blank", "noopener");
     else if (action === "edit") openPlaceEdit(id);
     else if (action === "up") movePlace(id, -1);
@@ -2222,7 +2222,7 @@ function formatMinutes(m) {
 
 
 
-const APP_VERSION = "v40";
+const APP_VERSION = "v41";
 
 // --- 식성: 매운 음식·못 먹는 음식 ---
 const SPICY_RE = /개미집|낙곱새|엽기|배떡|청년다방|불타는|홍짜장|교동짬뽕|마라|훠궈|떡볶이|엽떡|짬뽕|닭발|쭈꾸미|주꾸미|낙지|매운|불닭|아구찜|아귀찜|해물찜|닭갈비|찜닭|김치찜|김치찌개|부대찌개|육개장|감자탕|탄탄|쓰촨|사천|똠얌|커리|카레|태국 음식|인도 음식|麻辣|火锅|辣|spicy|sichuan|szechuan|hot ?pot|curry|thai|indian/i;
@@ -3625,6 +3625,49 @@ function openNaverRoute(from, to) {
   }, 2000);
 }
 
+// --- 바로 길안내: 지금 위치 → 이 장소 (네이버 지도 앱) ---
+function openNmapWithFallback(url, fallbackUrl) {
+  let left = false;
+  const onHide = () => { if (document.hidden) left = true; };
+  document.addEventListener("visibilitychange", onHide);
+  window.addEventListener("pagehide", onHide);
+  location.href = url;
+  setTimeout(() => {
+    document.removeEventListener("visibilitychange", onHide);
+    window.removeEventListener("pagehide", onHide);
+    if (left || document.hidden) return;
+    showToast("네이버 지도 앱이 열리지 않았어요. 앱이 설치돼 있는지 확인해 주세요.", 7000, {
+      label: "다른 지도로",
+      onClick: () => window.open(fallbackUrl, "_blank", "noopener")
+    });
+  }, 2000);
+}
+
+function startNavigation(place) {
+  const trip = state.activeTrip;
+  const links = getPlaceLinks(place);
+  if (!hasCoords(place) || !isInKorea(place.lat, place.lng)) {
+    // 해외·위치 모름: Google 지도 길찾기 (지금 위치 출발)
+    window.open(links.routeUrl, "_blank", "noopener");
+    return;
+  }
+  if (!isTouchDevice()) {
+    window.open(links.routeUrl, "_blank", "noopener");
+    showToast("네이버 지도 길안내는 아이폰·아이패드에서 바로 시작돼요. 여기서는 카카오맵으로 열었어요.", 4500);
+    return;
+  }
+  const mode = (place.move && place.move.mode) || "";
+  const t = trip.transport || "auto";
+  const driving = ["car", "taxi"].includes(mode) || (!mode && ["car", "rental", "taxi"].includes(t));
+  const walking = mode === "walk" || mode === "bike" || (!mode && t === "walk");
+  const n = v => encodeURIComponent(String(v || "").slice(0, 40));
+  const app = encodeURIComponent(location.origin + location.pathname);
+  const dest = `dlat=${place.lat}&dlng=${place.lng}&dname=${n(place.name)}&appname=${app}`;
+  // 출발지를 비우면 네이버 지도가 지금 위치에서 출발
+  const url = driving ? `nmap://navigation?${dest}` : walking ? `nmap://route/walk?${dest}` : `nmap://route/public?${dest}`;
+  openNmapWithFallback(url, links.routeUrl);
+}
+
 async function deleteActiveDay() {
   const t = state.activeTrip;
   if (!t) return;
@@ -4583,6 +4626,7 @@ function renderTimeline() {
         ${coordWarn ? `<div>${coordWarn}</div>` : ""}
         <div class="timeline-actions">
           <button class="chip-btn chip-primary" data-action="map" data-id="${id}">${window.icon("map", 16)}지도</button>
+          ${place.intercity === "back" ? "" : `<button class="chip-btn chip-navi" data-action="navi" data-id="${id}">${window.icon("navigate", 16)}길안내</button>`}
           ${isTransit ? "" : `<button class="chip-btn" data-action="search" data-id="${id}">${window.icon("search", 16)}${searchLabel}</button>`}
           <button class="chip-btn" data-action="edit" data-id="${id}">${window.icon("pencil", 16)}편집</button>
           ${place.intercity ? "" : `<button class="chip-btn chip-remove" data-action="remove" data-id="${id}">${window.icon("trash", 16)}빼기</button>`}
