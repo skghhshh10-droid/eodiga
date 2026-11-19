@@ -2027,7 +2027,7 @@ function formatMinutes(m) {
 
 
 
-const APP_VERSION = "v25";
+const APP_VERSION = "v26";
 
 // --- 식성: 매운 음식·못 먹는 음식 ---
 const SPICY_RE = /개미집|낙곱새|엽기|배떡|청년다방|불타는|홍짜장|교동짬뽕|마라|훠궈|떡볶이|엽떡|짬뽕|닭발|쭈꾸미|주꾸미|낙지|매운|불닭|아구찜|아귀찜|해물찜|닭갈비|찜닭|김치찜|김치찌개|부대찌개|육개장|감자탕|탄탄|쓰촨|사천|똠얌|커리|카레|태국 음식|인도 음식|麻辣|火锅|辣|spicy|sichuan|szechuan|hot ?pot|curry|thai|indian/i;
@@ -2439,7 +2439,6 @@ function budgetFit(items, budget) {
 const autoTopRunning = new Set();
 async function autoPickTop(trip, opts = {}) {
   if (!window.RoutyAI.hasPlacesKey() || !trip) return;
-  if (!opts.force && trip.source !== "ai") return;
   if (autoTopRunning.has(trip.id)) return;
   autoTopRunning.add(trip.id);
   try {
@@ -2451,7 +2450,9 @@ async function autoPickTop(trip, opts = {}) {
 
 async function autoPickTopInner(trip, opts = {}) {
   const sort = window.RoutyAI.getSettings().placesSort;
-  const targets = trip.places.filter(p => ["restaurant", "cafe"].includes(p.category) && !p.googlePlaceId && (opts.force || !p.autoTopTried) && hasCoords(p));
+  // 직접 추가한 식당(custom-)은 사용자가 고른 곳이라 자동으로 바꾸지 않음 (메뉴로 강제할 때는 포함)
+  const targets = trip.places.filter(p => ["restaurant", "cafe"].includes(p.category) && !p.googlePlaceId
+    && (opts.force || (!p.autoTopTried && !String(p.id).startsWith("custom-"))) && hasCoords(p));
   if (!targets.length) {
     if (opts.force) showToast("바꿀 식당이 없어요. 이미 모두 Google에서 고른 곳이에요.", 4000);
     return;
@@ -2853,9 +2854,9 @@ function showItineraryView() {
     renderItineraryAll();
     // AI 일정 중 아직 위치 확인 안 된 장소가 있으면 이어서 확인
     const t = state.activeTrip;
+    // 추천 템플릿·공유·예전 일정도 식당이 아직 Google 1위로 안 바뀌었으면 이어서 처리
+    if (t && t.places.some(p => ["restaurant", "cafe"].includes(p.category) && !p.googlePlaceId && !p.autoTopTried && !String(p.id).startsWith("custom-"))) autoPickTop(t);
     if (t && t.source === "ai") {
-      // 예전에 만든 일정도 식당이 아직 Google 1위로 안 바뀌었으면 이어서 처리
-      if (t.places.some(p => ["restaurant", "cafe"].includes(p.category) && !p.googlePlaceId && !p.autoTopTried)) autoPickTop(t);
       const queued = new Set(verifyQueue.filter(j => j.tripId === t.id).map(j => j.id));
       const pending = t.places.filter(p => !p.coordChecked && p.category !== "transit" && !queued.has(p.id)).map(p => p.id);
       if (pending.length) verifyCoordinates(t.id, pending);
