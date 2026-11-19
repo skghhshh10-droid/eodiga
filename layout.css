@@ -920,3 +920,6 @@ a.place-name-link:hover { text-decoration: underline; text-underline-offset: 3px
 .chip-btn.chip-flight { color: var(--primary-solid); border-color: rgba(99, 102, 241, 0.45); }
 .chip-btn.chip-flight.on { background: rgba(99, 102, 241, 0.1); }
 .timeline-item .flight-panel { margin-left: 0; }
+.tpl-grid { display: grid; grid-template-columns: 1.4fr 1fr 1fr; gap: 10px; }
+@media (max-width: 480px) { .tpl-grid { grid-template-columns: 1fr 1fr; } .tpl-grid .form-group:first-child { grid-column: 1 / -1; } }
+#template-setup-overlay .checklist-modal-header { padding: 18px 20px 4px; }

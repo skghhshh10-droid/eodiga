@@ -172,6 +172,7 @@ document.addEventListener("DOMContentLoaded", () => {
   window.addEventListener("orientationchange", () => setTimeout(refreshMapSize, 300));
   updateAiNotice();
   setupDietInputs();
+  setupTemplateSetup();
 
   // Render initial explorer state
   renderExploreTab();
@@ -810,8 +811,8 @@ function renderTemplates() {
     `;
     
     card.addEventListener("click", () => {
-      // Direct load pre-configured template as active itinerary
-      loadItineraryTemplate(template);
+      // 출발지·날짜·인원·도착 공항·일수를 먼저 정하고 일정 열기
+      openTemplateSetup(template);
     });
     
     container.appendChild(card);
@@ -835,25 +836,105 @@ function renderTemplates() {
   }
 }
 
-function loadItineraryTemplate(template) {
+function loadItineraryTemplate(template, opts = {}) {
   // Setup current active trip deep-cloning places
+  const days = opts.days || template.duration;
+  let places = JSON.parse(JSON.stringify(template.places)).filter(p => (p.day || 1) <= days);
   state.activeTrip = {
     id: `template-${template.id}-${Date.now()}`,
     source: "template",
     summary: template.description,
     title: template.title,
     destination: template.destination,
-    days: template.duration,
+    days,
     budget: template.budget,
     style: template.style,
-    places: JSON.parse(JSON.stringify(template.places))
+    origin: opts.origin || undefined,
+    startDate: opts.startDate || undefined,
+    people: opts.people || undefined,
+    arrivalAirport: opts.airport || undefined,
+    places
   };
   ensurePlacePrices(state.activeTrip);
   state.activeTripDay = 1;
 
   // Jump to itinerary view
   showItineraryView();
-  showToast(`${template.destination} 추천 템플릿 일정을 로드했습니다.`);
+  showToast(days > template.duration
+    ? `${template.destination} 일정을 열었어요. 늘어난 ${days - template.duration}일은 비어 있으니 아래 수정 요청으로 채워 보세요.`
+    : `${template.destination} 추천 일정을 열었어요.`, 4500);
+}
+
+// --- 추천 테마 설정 창: 출발 도시·출발 날짜·인원·도착 공항·여행 일수 ---
+let tplSetupTemplate = null;
+const AIRPORT_ALTS = { HND: ["NRT"], NRT: ["HND"], TPE: ["TSA"], TSA: ["TPE"], BKK: ["DMK"], DMK: ["BKK"], KIX: ["ITM"], PVG: ["SHA"], ICN: ["GMP"] };
+const AIRPORT_NAMES = { KIX: "간사이", ITM: "이타미(오사카)", NRT: "나리타", HND: "하네다", FUK: "후쿠오카", CTS: "신치토세(삿포로)", OKA: "나하(오키나와)",
+  NGO: "주부(나고야)", TPE: "타오위안(타이베이)", TSA: "쑹산(타이베이)", HKG: "홍콩", BKK: "수완나품(방콕)", DMK: "돈므앙(방콕)", DAD: "다낭", CXR: "깜라인(나트랑)",
+  HAN: "하노이", SGN: "호치민", CEB: "세부", SIN: "싱가포르", DPS: "발리", GUM: "괌", CJU: "제주", PUS: "김해(부산)", GMP: "김포", ICN: "인천" };
+
+function templateAirports(template) {
+  const texts = [template.destination].concat(template.places.filter(isAirportPlace).map(p => p.name)).join(" ");
+  const codes = [];
+  WORLD_AIRPORTS.forEach(([re, code]) => { if (re.test(texts) && !codes.includes(code)) codes.push(code); });
+  Object.entries(AIRPORT_CODES).forEach(([k, code]) => { if (texts.includes(k) && !codes.includes(code) && code !== "ICN" && code !== "GMP") codes.push(code); });
+  // 공항 카드에 나온 공항을 맨 앞으로
+  const first = template.places.find(isAirportPlace);
+  const firstCode = first ? guessAirport(first.name) : "";
+  if (firstCode) codes.splice(codes.indexOf(firstCode), 1), codes.unshift(firstCode);
+  (AIRPORT_ALTS[codes[0]] || []).forEach(c => { if (!codes.includes(c)) codes.push(c); });
+  return codes;
+}
+
+function openTemplateSetup(template) {
+  tplSetupTemplate = template;
+  const $ = id => document.getElementById(id);
+  $("tpl-setup-title").textContent = template.title.split(" (")[0];
+  $("tpl-setup-desc").textContent = `${template.destination.replaceAll("/", " · ")} · 기본 ${template.duration}일. 넣은 값으로 항공권·숙소·기차 예매 버튼이 날짜와 인원까지 채워져 열려요.`;
+  try { $("tpl-origin").value = localStorage.getItem("routy_origin") || ""; } catch (e) {}
+  const t = new Date(); t.setDate(t.getDate() + 14);
+  $("tpl-start").value = "";
+  $("tpl-start").min = ymd(new Date());
+  $("tpl-start").placeholder = ymd(t);
+  $("tpl-days").innerHTML = Array.from({ length: 10 }, (_, i) => i + 1)
+    .map(n => `<option value="${n}" ${n === template.duration ? "selected" : ""}>${n}일${n === template.duration ? " (기본)" : ""}</option>`).join("");
+  $("tpl-people").innerHTML = Array.from({ length: 10 }, (_, i) => i + 1)
+    .map(n => `<option value="${n}" ${n === 2 ? "selected" : ""}>${n}명</option>`).join("");
+  const airports = templateAirports(template);
+  $("tpl-airport-group").style.display = airports.length ? "" : "none";
+  $("tpl-airport").innerHTML = airports.map(c => `<option value="${c}">${AIRPORT_NAMES[c] || c} (${c})</option>`).join("");
+  updateTplDaysNote();
+  $("template-setup-overlay").classList.add("active");
+}
+
+function updateTplDaysNote() {
+  const t = tplSetupTemplate;
+  if (!t) return;
+  const n = parseInt(document.getElementById("tpl-days").value, 10);
+  const el = document.getElementById("tpl-days-note");
+  el.textContent = n < t.duration ? `${t.duration - n}일을 줄이면 뒤쪽 날짜의 일정이 빠져요.`
+    : n > t.duration ? `늘어난 ${n - t.duration}일은 빈 날로 추가돼요. 일정을 연 뒤 'AI 수정 요청'으로 채울 수 있어요.` : "";
+}
+
+function setupTemplateSetup() {
+  const $ = id => document.getElementById(id);
+  const overlay = $("template-setup-overlay");
+  if (!overlay) return;
+  const close = () => overlay.classList.remove("active");
+  $("btn-close-tpl-setup").addEventListener("click", close);
+  overlay.addEventListener("click", e => { if (e.target === overlay) close(); });
+  $("tpl-days").addEventListener("change", updateTplDaysNote);
+  $("btn-tpl-skip").addEventListener("click", () => { close(); loadItineraryTemplate(tplSetupTemplate); });
+  $("btn-tpl-apply").addEventListener("click", () => {
+    const origin = rememberOrigin($("tpl-origin").value.trim());
+    close();
+    loadItineraryTemplate(tplSetupTemplate, {
+      origin,
+      startDate: $("tpl-start").value || undefined,
+      people: parseInt($("tpl-people").value, 10) || 2,
+      days: parseInt($("tpl-days").value, 10) || tplSetupTemplate.duration,
+      airport: $("tpl-airport-group").style.display === "none" ? undefined : $("tpl-airport").value
+    });
+  });
 }
 
 // --- Planner: Destinations Autocomplete Suggestions ---
@@ -2036,7 +2117,7 @@ function formatMinutes(m) {
 
 
 
-const APP_VERSION = "v29";
+const APP_VERSION = "v30";
 
 // --- 식성: 매운 음식·못 먹는 음식 ---
 const SPICY_RE = /개미집|낙곱새|엽기|배떡|청년다방|불타는|홍짜장|교동짬뽕|마라|훠궈|떡볶이|엽떡|짬뽕|닭발|쭈꾸미|주꾸미|낙지|매운|불닭|아구찜|아귀찜|해물찜|닭갈비|찜닭|김치찜|김치찌개|부대찌개|육개장|감자탕|탄탄|쓰촨|사천|똠얌|커리|카레|태국 음식|인도 음식|麻辣|火锅|辣|spicy|sichuan|szechuan|hot ?pot|curry|thai|indian/i;
@@ -2363,7 +2444,7 @@ function flightTrip(trip, place) {
 // 비행 구간 정보가 없는 일정(템플릿·예전 일정): 출발 도시 ↔ 목적지 공항으로 첫날 가고 마지막 날 오는 왕복을 만든다
 function synthFlightTrip(trip, place) {
   const airportPlace = place && isAirportPlace(place) ? place : trip.places.find(isAirportPlace);
-  const dest = guessAirport(airportPlace && airportPlace.name) || guessAirport(trip.destination);
+  const dest = trip.arrivalAirport || guessAirport(airportPlace && airportPlace.name) || guessAirport(trip.destination);
   if (!dest) return null;
   const from = originAirport(trip, dest);
   if (from === dest) return null;
