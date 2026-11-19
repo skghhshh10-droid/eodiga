@@ -956,6 +956,7 @@ function setupPlannerForm() {
     e.preventDefault();
     const input = {
       destination: document.getElementById("input-destination").value.trim(),
+      origin: rememberOrigin(document.getElementById("input-origin").value.trim()),
       days: parseInt(document.getElementById("input-duration").value, 10),
       budget: getSpendValue("spend-picker"),
       budgetPlan: readBudgetInputs("input-budget"),
@@ -1028,6 +1029,7 @@ async function runGeneration(input) {
   const base = {
     id: `trip-${Date.now()}`,
     destination: input.destination,
+    origin: input.origin || "서울",
     days: input.days,
     budget: input.budget,
     budgetPlan: input.budgetPlan,
@@ -1669,6 +1671,11 @@ function setupPlaceActionDelegation() {
     else if (action === "suggest") suggestAlternatives(id, btn);
     else if (action === "pick") pickAlternative(id, parseInt(btn.getAttribute("data-alt"), 10));
     else if (action === "ticket") openTicketSite(place);
+    else if (action === "flights") {
+      if (expandedFlights.has(place.id)) expandedFlights.delete(place.id); else expandedFlights.add(place.id);
+      renderTimeline();
+    }
+    else if (action === "flightsite") openFlightSite(place, btn.getAttribute("data-site"));
     else if (action === "stays") {
       if (expandedStays.has(place.id)) expandedStays.delete(place.id); else expandedStays.add(place.id);
       renderTimeline();
@@ -2008,6 +2015,7 @@ async function changeTripTransport(value) {
 }
 
 function moveConnectorHtml(move, from, to) {
+  if (move && move.mode === "flight" && to) return flightConnectorHtml(move, to);
   const routeBtn = from && to ? naverRouteBtnHtml(from, to, move && move.mode) : "";
   if (!move || !move.mode) return routeBtn ? `<div class="move-connector">${routeBtn}</div>` : "";
   const ticket = ticketInfo(move, from, to);
@@ -2027,7 +2035,7 @@ function formatMinutes(m) {
 
 
 
-const APP_VERSION = "v27";
+const APP_VERSION = "v28";
 
 // --- 식성: 매운 음식·못 먹는 음식 ---
 const SPICY_RE = /개미집|낙곱새|엽기|배떡|청년다방|불타는|홍짜장|교동짬뽕|마라|훠궈|떡볶이|엽떡|짬뽕|닭발|쭈꾸미|주꾸미|낙지|매운|불닭|아구찜|아귀찜|해물찜|닭갈비|찜닭|김치찜|김치찌개|부대찌개|육개장|감자탕|탄탄|쓰촨|사천|똠얌|커리|카레|태국 음식|인도 음식|麻辣|火锅|辣|spicy|sichuan|szechuan|hot ?pot|curry|thai|indian/i;
@@ -2075,6 +2083,10 @@ function setupDietInputs() {
     btn.classList.toggle("on", !!s.noSpicy);
     if (document.activeElement !== input) input.value = s.avoidFoods || "";
   };
+  try {
+    const o = localStorage.getItem("routy_origin");
+    if (o) document.getElementById("input-origin").value = o;
+  } catch (e) {}
   btn.addEventListener("click", () => {
     window.RoutyAI.saveSettings({ noSpicy: !window.RoutyAI.getSettings().noSpicy });
     sync();
@@ -2257,6 +2269,119 @@ async function openStaySite(place, key) {
       ? `야놀자 화면 위쪽에서 날짜를${when}, 인원을 ${info.people}명으로 바꿔 주세요.`
       : `${link.label}에서 '${info.area}'${when}, ${info.people}명으로 검색한 뒤 '낮은 가격순'으로 정렬하세요.`, 6000);
   }
+}
+
+
+// --- 항공권: 날짜·인원·구간을 채운 검색 화면 열기 ---
+const expandedFlights = new Set();
+const AIRPORT_CODES = {
+  "인천": "ICN", "김포": "GMP", "김해": "PUS", "부산": "PUS", "제주": "CJU", "대구": "TAE", "청주": "CJJ",
+  "광주": "KWJ", "무안": "MWX", "여수": "RSU", "양양": "YNY", "울산": "USN", "포항": "KPO", "사천": "HIN", "군산": "KUV", "원주": "WJU"
+};
+const KOREA_CODES = new Set(Object.values(AIRPORT_CODES));
+
+function rememberOrigin(v) {
+  try {
+    if (v) localStorage.setItem("routy_origin", v);
+    return v || localStorage.getItem("routy_origin") || "서울";
+  } catch (e) { return v || "서울"; }
+}
+
+function airportCode(text) {
+  const t = String(text || "");
+  const m = t.match(/\(([A-Z]{3})\)/) || t.match(/\b([A-Z]{3})\b/);
+  if (m) return m[1];
+  const key = Object.keys(AIRPORT_CODES).find(k => t.includes(k));
+  return key ? AIRPORT_CODES[key] : "";
+}
+
+function airportShort(text) {
+  return String(text || "").replace(/\s*\([A-Z]{3}\)/, "").replace(/국제공항|공항/, "") || text;
+}
+
+// 이 일정의 비행 구간들 (코드가 있는 것만)
+function flightLegs(trip) {
+  const legs = [];
+  for (let d = 1; d <= (trip.days || 1); d++) {
+    trip.places.filter(p => p.day === d).forEach(p => {
+      if (p.move && p.move.mode === "flight") {
+        const from = airportCode(p.move.from), to = airportCode(p.move.to);
+        if (from && to) legs.push({ place: p, from, to, day: d, date: getTripDate(trip, d) });
+      }
+    });
+  }
+  return legs;
+}
+
+// 이 구간과 짝이 되는 왕복 구간 찾기 (가는 편 ↔ 오는 편)
+function flightTrip(trip, place) {
+  const legs = flightLegs(trip);
+  const leg = legs.find(l => l.place === place);
+  if (!leg) return null;
+  const back = legs.find(l => l !== leg && l.from === leg.to && l.to === leg.from);
+  const out = back && back.day < leg.day ? back : leg;
+  const ret = back ? (out === leg ? back : leg) : null;
+  return { out, ret, people: Math.max(1, parseInt(trip.people, 10) || 1) };
+}
+
+function yymmdd(d) { return ymd(d).slice(2).replace(/-/g, ""); }
+
+function flightLinks(ft) {
+  const { out, ret, people } = ft;
+  const enc = encodeURIComponent;
+  const domestic = KOREA_CODES.has(out.from) && KOREA_CODES.has(out.to);
+  const links = [];
+  // 네이버 항공권
+  if (out.date) {
+    const seg = `${out.from}-${out.to}-${ymd(out.date).replace(/-/g, "")}` + (ret && ret.date ? `/${ret.from}-${ret.to}-${ymd(ret.date).replace(/-/g, "")}` : "");
+    links.push({ key: "naver", label: "네이버 항공권", sub: domestic ? "국내선" : "여러 항공사 비교", url: `https://flight.naver.com/flights/${domestic ? "domestic" : "international"}/${seg}?adult=${people}&fareType=${domestic ? "YC" : "Y"}`, main: true });
+  } else {
+    links.push({ key: "naver", label: "네이버 항공권", sub: "날짜는 직접", url: "https://flight.naver.com/", main: true });
+  }
+  // 스카이스캐너
+  const sk = out.date
+    ? `${out.from.toLowerCase()}/${out.to.toLowerCase()}/${yymmdd(out.date)}/${ret && ret.date ? yymmdd(ret.date) + "/" : ""}`
+    : `${out.from.toLowerCase()}/${out.to.toLowerCase()}/`;
+  links.push({ key: "skyscanner", label: "스카이스캐너", sub: "최저가 비교", url: `https://www.skyscanner.co.kr/transport/flights/${sk}?adultsv2=${people}&cabinclass=economy&rtn=${ret && ret.date ? 1 : 0}` });
+  // Google 항공편 (자연어 검색: 날짜·인원·왕복 인식 확인됨)
+  const q = `Flights to ${out.to} from ${out.from}` + (out.date ? ` on ${ymd(out.date)}` : "") + (ret && ret.date ? ` through ${ymd(ret.date)}` : (out.date ? " oneway" : "")) + ` for ${people} adult${people > 1 ? "s" : ""}`;
+  links.push({ key: "google", label: "Google 항공편", sub: "가격 추적", url: `https://www.google.com/travel/flights?q=${enc(q)}&hl=ko&curr=KRW` });
+  return links;
+}
+
+function flightConnectorHtml(move, to) {
+  const id = esc(to.id);
+  const from = move.from ? airportShort(move.from) : "출발";
+  const dest = move.to ? airportShort(move.to) : "도착";
+  const codes = airportCode(move.from) && airportCode(move.to) ? ` (${airportCode(move.from)}→${airportCode(move.to)})` : "";
+  const cost = move.cost ? ` · 약 ${formatWon(move.cost)}/인 (예상)` : "";
+  const mins = move.minutes ? ` ${formatMinutes(move.minutes)}` : "";
+  const ft = state.activeTrip ? flightTrip(state.activeTrip, to) : null;
+  const open = expandedFlights.has(to.id);
+  const btn = ft ? `<button class="move-ticket" data-action="flights" data-id="${id}">${window.icon("flight", 14)}${open ? "접기" : "항공권 찾기"}</button>` : "";
+  let panel = "";
+  if (ft && open) {
+    const { out, ret, people } = ft;
+    const d = x => x.date ? `${x.date.getMonth() + 1}/${x.date.getDate()}` : "날짜 미정";
+    const head = `${ret ? "왕복" : "편도"} · 가는 날 ${d(out)}${ret ? ` · 오는 날 ${d(ret)}` : ""} · ${people}명`;
+    panel = `
+      <div class="stay-panel flight-panel">
+        <div class="stay-head"><strong>${out.from} → ${out.to}${ret ? ` → ${ret.to}` : ""}</strong><span>${head}</span></div>
+        ${out.date ? "" : `<div class="stay-hint warn">여행 시작일이 없어 날짜 없이 열려요. 위쪽 날짜 칸에서 출발일을 정하면 날짜까지 채워져요.</div>`}
+        <div class="stay-links">
+          ${flightLinks(ft).map(l => `<button class="stay-link ${l.main ? "main" : ""}" data-action="flightsite" data-site="${l.key}" data-id="${id}"><b>${esc(l.label)}</b><small>${esc(l.sub)}</small></button>`).join("")}
+        </div>
+        <div class="stay-hint">항공권 가격은 사이트에서 실시간으로 확인돼요. 수하물 포함 여부는 항공사마다 달라요.</div>
+      </div>`;
+  }
+  return `<div class="move-connector move-flight">${window.icon("flight", 15)}<span class="move-main">비행기${mins}${cost}</span><span class="move-leg">${esc(from)} → ${esc(dest)}${codes}</span>${btn}</div>${panel}`;
+}
+
+function openFlightSite(place, key) {
+  const ft = flightTrip(state.activeTrip, place);
+  if (!ft) return;
+  const link = flightLinks(ft).find(l => l.key === key);
+  if (link) window.open(link.url, "_blank", "noopener");
 }
 
 // --- 기차·고속버스 예매 연결 (국내) ---
@@ -3322,10 +3447,10 @@ function renderTimeline() {
       `;
     }
 
-    if (index > 0) {
+    if (index > 0 || (place.move && place.move.mode === "flight")) {
       const conn = document.createElement("div");
       conn.innerHTML = moveConnectorHtml(place.move, dayPlaces[index - 1], place);
-      if (conn.firstElementChild) container.appendChild(conn.firstElementChild);
+      while (conn.firstElementChild) container.appendChild(conn.firstElementChild);
     }
     container.appendChild(card);
   });
