@@ -2027,7 +2027,7 @@ function formatMinutes(m) {
 
 
 
-const APP_VERSION = "v23";
+const APP_VERSION = "v24";
 
 // --- 식성: 매운 음식·못 먹는 음식 ---
 const SPICY_RE = /개미집|낙곱새|엽기|배떡|청년다방|불타는|홍짜장|교동짬뽕|마라|훠궈|떡볶이|엽떡|짬뽕|닭발|쭈꾸미|주꾸미|낙지|매운|불닭|아구찜|아귀찜|해물찜|닭갈비|찜닭|김치찜|김치찌개|부대찌개|육개장|감자탕|탄탄|쓰촨|사천|똠얌|커리|카레|태국 음식|인도 음식|麻辣|火锅|辣|spicy|sichuan|szechuan|hot ?pot|curry|thai|indian/i;
@@ -2197,8 +2197,9 @@ async function openTicketSite(place) {
   const leg = m.from || m.to ? `${m.from || "?"} → ${m.to || "?"}` : "";
   const msg = `${site.label} 사이트에서 ${dateTxt}${leg}${m.service ? ` ${m.service}` : ""}을(를) 골라 예매하세요.`.replace(/\s+/g, " ");
   // 예매 사이트에 값을 미리 채울 방법이 없어, 고를 내용을 안내하고 복사해 둔다
-  try { if (leg && navigator.clipboard) await navigator.clipboard.writeText(`${dateTxt}${leg}`.trim()); } catch (e) {}
+  // 사파리 팝업 차단을 피하려면 새 창은 클릭 직후(기다리기 전에) 열어야 함
   window.open(site.url, "_blank", "noopener");
+  try { if (leg && navigator.clipboard) await navigator.clipboard.writeText(`${dateTxt}${leg}`.trim()); } catch (e) {}
   showToast(msg, 6000);
 }
 
