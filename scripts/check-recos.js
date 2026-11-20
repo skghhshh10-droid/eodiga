@@ -52,7 +52,9 @@ const months = new Set();
     });
     for (let d = 1; d <= t.duration; d++) {
       const day = places.filter(p => p.day === d);
-      if (!day.some(p => p.category === "restaurant")) err(tw, `${d}일차 식사 없음`);
+      const meals = day.filter(p => p.category === "restaurant").length;
+      if (d === 1 || d === t.duration ? meals < 1 : meals < 3) err(tw, `${d}일차 끼니 부족(${meals}끼): 중간 날은 아침·점심·저녁 3끼, 첫날·마지막 날은 머무는 동안의 끼니`);
+      if (d > 1 && d < t.duration && !day.some(p => p.category === "restaurant" && /\(아침\)/.test(p.name))) err(tw, `${d}일차 아침 없음`);
       if (d < t.duration && !day.some(p => p.category === "hotel")) err(tw, `${d}일차 숙소 없음`);
       for (let i = 1; i < day.length; i++) if ((day[i].time || "") < (day[i - 1].time || "")) err(tw, `${d}일차 시간 순서`);
     }

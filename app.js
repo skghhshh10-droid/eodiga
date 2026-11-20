@@ -108,6 +108,110 @@ function getDeterministicPrice(placeName, category, budgetTier) {
   return 10000 + (hash % 15) * 1000;
 }
 
+// --- 끼니 채우기: 아침(숙박 다음 날부터)·점심·저녁이 빠진 날에 식사 자리를 넣는다 ---
+// 넣은 자리는 이름이 '점심 식사 · ○○ 근처'이고, Places 키가 있으면 주변 Google 1위 식당으로 자동 교체된다
+const MEAL_SLOTS = [
+  { key: "breakfast", label: "아침", from: 7 * 60, to: 10 * 60, dur: 45, query: "breakfast", re: /아침|조식|브런치|아점|breakfast|brunch/i },
+  { key: "lunch", label: "점심", from: 11 * 60 + 30, to: 14 * 60, dur: 60, query: "", re: /점심|런치|브런치|아점|lunch|brunch/i },
+  { key: "dinner", label: "저녁", from: 17 * 60 + 30, to: 20 * 60, dur: 70, query: "", re: /저녁|디너|석식|dinner/i }
+];
+
+function mealOf(p) {
+  if (p.category !== "restaurant") return [];
+  const r = parseTimeRange(p.time);
+  const named = MEAL_SLOTS.filter(m => m.re.test(p.name || "")).map(m => m.key);
+  if (named.length) return named;
+  if (!r) return [];
+  const st = r[0];
+  if (st < 10 * 60 + 30) return ["breakfast"];
+  if (st < 16 * 60) return ["lunch"];
+  return ["dinner"];
+}
+
+function mealSummary(meals) {
+  const n = k => meals.filter(m => m.mealSlot === k).length;
+  return MEAL_SLOTS.filter(m => n(m.key)).map(m => `${m.label} ${n(m.key)}`).join("·");
+}
+
+function ensureMeals(trip) {
+  if (!trip || !Array.isArray(trip.places) || trip.mealsChecked) return [];
+  trip.mealsChecked = true;
+  const added = [];
+  const lastDay = trip.days || Math.max(1, ...trip.places.map(p => p.day || 1));
+  const isEdgeTransit = p => p.category === "transit" && (p.intercity || STOP_RE.test(p.name || ""));
+  for (let d = 1; d <= lastDay; d++) {
+    const day = () => trip.places.filter(p => p.day === d).map(p => ({ p, r: parseTimeRange(p.time) })).filter(x => x.r).sort((a, b) => a.r[0] - b.r[0]);
+    let list = day();
+    if (!list.length) continue;
+    const have = new Set(list.flatMap(x => mealOf(x.p)));
+    // 그날 실제로 돌아다니는 시간: 첫날은 도착 뒤부터, 마지막 날은 출발 전까지
+    // 첫날 맨 앞의 이동 구간들(공항 도착 → 시내 이동 등)은 한 덩어리로 보고 그 뒤부터
+    let leadEnd = -1;
+    if (d === 1) for (const x of list) { if (x.p.category === "transit") leadEnd = x.r[1]; else break; }
+    const startMin = leadEnd >= 0 ? leadEnd : list[0].r[0];
+    const trail = [];
+    if (d === lastDay && lastDay > 1) for (const x of list.slice().reverse()) { if (x.p.category === "transit") trail.unshift(x); else if (x.p.category !== "hotel") break; }
+    const tailTransit = trail[0] || null;
+    const nonHotel = list.filter(x => x.p.category !== "hotel");
+    const endMin = tailTransit ? tailTransit.r[0] : (d < lastDay ? 22 * 60 : (nonHotel.length ? nonHotel[nonHotel.length - 1].r[1] : list[list.length - 1].r[1]));
+    // 연박이면 숙소가 첫날에만 적혀 있을 수 있어 가장 최근 숙소를 쓴다
+    const prevHotel = trip.places.filter(p => p.day < d && p.category === "hotel").sort((a, b) => a.day - b.day).pop();
+    MEAL_SLOTS.forEach(m => {
+      if (have.has(m.key)) return;
+      if (m.key === "breakfast" && (d === 1 || !prevHotel)) return; // 첫날 아침은 집·이동 중
+      if (m.key !== "breakfast" && (startMin > m.to - 30 || endMin < m.from + m.dur)) return; // 그 시간에 여행지에 없음
+      list = day();
+      let st, near;
+      if (m.key === "breakfast") {
+        const first = list.find(x => x.p.category !== "hotel") || list[0];
+        const end = Math.min(first.r[0] - 10, m.to);
+        st = end - m.dur;
+        if (st < 6 * 60 + 30) return;
+        near = prevHotel || first.p;
+      } else {
+        // 끼니 시간대 안의 빈틈을 먼저 찾고, 없으면 그 시간에 끼워 넣고 뒤 일정을 민다
+        let gapFound = null;
+        for (let i = 0; i <= list.length; i++) {
+          const gs = Math.max(i ? list[i - 1].r[1] + 10 : startMin, m.from, startMin);
+          const ge = Math.min(i < list.length ? list[i].r[0] - 10 : endMin, m.to + m.dur);
+          if (ge - gs >= m.dur) { gapFound = { st: gs, near: (i ? list[i - 1] : list[i] || list[0]).p }; break; }
+        }
+        if (gapFound) { st = gapFound.st; near = gapFound.near; }
+        else {
+          // 끼니 시작 시각에 진행 중인 일정이 있으면 그 뒤에, 아니면 끼니 시각에 넣고 겹치는 뒤 일정을 민다
+          const fixed = x => x.p.intercity || trail.includes(x) || (d === 1 && x.r[1] <= startMin && x.p.category === "transit");
+          const covering = list.find(x => x.p.category !== "hotel" && x.r[0] <= m.from && x.r[1] > m.from);
+          st = Math.max(covering ? covering.r[1] + 10 : m.from, startMin);
+          near = covering ? covering.p : (list.filter(x => x.r[0] < st && x.p.category !== "hotel").pop() || list[0]).p;
+          const next = list.find(x => x !== covering && x.r[1] > st && !fixed(x));
+          const shift = next ? st + m.dur + 10 - next.r[0] : 0;
+          if (shift > 0) {
+            const from = next.r[0];
+            list.filter(x => x.r[0] >= from && !fixed(x)).forEach(x => { x.p.time = shiftTimeString(x.p.time, shift); });
+          }
+        }
+      }
+      if (!hasCoords(near)) near = list.map(x => x.p).find(hasCoords);
+      if (!near) return;
+      const nearName = String(near.name || "").replace(/\s*\([^)]*\)\s*/g, " ").trim().slice(0, 14);
+      const meal = {
+        id: `meal-${d}-${m.key}-${Date.now().toString(36)}${Math.random().toString(36).slice(2, 5)}`,
+        day: d, category: "restaurant", mealSlot: m.key,
+        name: `${m.label} 식사 · ${nearName} 근처`,
+        time: `${minutesToHHMM(st)} - ${minutesToHHMM(st + m.dur)}`,
+        lat: near.lat, lng: near.lng, coordChecked: true,
+        topQuery: m.query,
+        description: m.key === "breakfast" ? "숙소 근처 아침 식사. 숙소 조식이 있으면 그걸로 대신해도 돼요." : `일정 사이 ${m.label} 식사. 'TOP 5'에서 주변 인기 식당을 고를 수 있어요.`
+      };
+      trip.places.push(meal);
+      added.push(meal);
+    });
+    sortTripPlaces(trip, d);
+  }
+  if (added.length) ensurePlacePrices(trip);
+  return added;
+}
+
 function ensurePlacePrices(trip) {
   if (!trip || !trip.places) return;
   trip.places.forEach(place => {
@@ -1038,13 +1142,15 @@ function loadItineraryTemplate(template, opts = {}) {
     places
   };
   ensurePlacePrices(state.activeTrip);
+  const meals = ensureMeals(state.activeTrip);
   state.activeTripDay = 1;
 
   // Jump to itinerary view
   showItineraryView();
+  const mealNote = meals.length ? ` 빠진 끼니 ${meals.length}개(${mealSummary(meals)})도 넣었어요.` : "";
   showToast(days > template.duration
-    ? `${template.destination} 일정을 열었어요. 늘어난 ${days - template.duration}일은 비어 있으니 아래 수정 요청으로 채워 보세요.`
-    : `${template.destination} 추천 일정을 열었어요.`, 4500);
+    ? `${template.destination} 일정을 열었어요. 늘어난 ${days - template.duration}일은 비어 있으니 아래 수정 요청으로 채워 보세요.${mealNote}`
+    : `${template.destination} 추천 일정을 열었어요.${mealNote}`, 5000);
 }
 
 // --- 추천 테마 설정 창: 출발 도시·출발 날짜·인원·도착 공항·여행 일수 ---
@@ -1449,6 +1555,7 @@ async function runGeneration(input) {
     }
     ensureTripShape(trip);
     ensurePlacePrices(trip);
+    ensureMeals(trip);
     return trip;
   } catch (err) {
     if (generateCancelledByUser) showToast("일정 생성을 취소했습니다.");
@@ -2536,7 +2643,7 @@ function formatMinutes(m) {
 
 
 
-const APP_VERSION = "v48";
+const APP_VERSION = "v49";
 
 // --- 목적지별 표지 색·그림 (사진 대신 저작권 걱정 없는 색과 이모지) ---
 const DEST_THEMES = [
@@ -4695,6 +4802,18 @@ function showItineraryView() {
   if (!state.activeTrip) return;
   ensureTripShape(state.activeTrip);
   ensurePlacePrices(state.activeTrip);
+  // 예전에 만든 일정: 한 번만 빠진 끼니를 채우고 알려 줌 (되돌리기 가능)
+  if (!state.activeTrip.mealsChecked) {
+    const before = cloneTrip(state.activeTrip);
+    const meals = ensureMeals(state.activeTrip);
+    if (meals.length) {
+      persistActiveTrip();
+      setTimeout(() => showToast(`빠진 끼니 ${meals.length}개(${mealSummary(meals)})를 넣었어요.`, 6000, {
+        label: "되돌리기",
+        onClick: () => { before.mealsChecked = true; state.activeTrip = before; renderItineraryAll(); persistActiveTrip(); }
+      }), 400);
+    }
+  }
   if (!isActiveTripSaved()) saveDraft();
 
   state.editMode = false;
