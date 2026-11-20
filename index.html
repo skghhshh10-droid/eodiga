@@ -100,6 +100,13 @@
               <button type="button" class="btn btn-sm btn-primary" onclick="switchTab('profile')">설정으로 이동</button>
             </div>
 
+            <div class="pstep-bar" id="pstep-bar">
+              <button type="button" class="pstep-tab active" data-goto="1"><b>1</b><span>여행지·날짜</span></button>
+              <button type="button" class="pstep-tab" data-goto="2"><b>2</b><span>일행·이동</span></button>
+              <button type="button" class="pstep-tab" data-goto="3"><b>3</b><span>취향·식성</span></button>
+            </div>
+
+            <div class="pstep active" data-step="1">
             <div class="form-group">
               <label for="input-destination">여행 목적지</label>
               <input type="text" id="input-destination" placeholder="예: 제주도, 도쿄, 경주, 파리 등" required autocomplete="off">
@@ -138,6 +145,13 @@
               <input type="time" id="input-wake" value="08:00">
             </div>
 
+              <div class="pstep-nav">
+                <button type="button" class="btn btn-block btn-primary" data-next="2">다음: 일행·이동 →</button>
+                <button type="button" class="pstep-quick" data-quick>나머지는 알아서, 바로 만들기</button>
+              </div>
+            </div>
+
+            <div class="pstep" data-step="2">
             <div class="form-row">
               <div class="form-group col">
                 <label for="input-party">누구와</label>
@@ -176,6 +190,13 @@
               </div>
             </div>
 
+              <div class="pstep-nav">
+                <button type="button" class="btn btn-block btn-primary" data-next="3">다음: 취향·식성 →</button>
+                <button type="button" class="pstep-quick" data-quick>나머지는 알아서, 바로 만들기</button>
+              </div>
+            </div>
+
+            <div class="pstep" data-step="3">
             <div class="form-group">
               <label>선호하는 여행 스타일 <small class="label-hint">(여러 개 선택 가능)</small></label>
               <div class="style-tags-container">
@@ -223,6 +244,7 @@
               <span id="btn-generate-label">AI 일정 생성하기</span>
               <span class="btn-icon"><i data-icon="sparkles" data-size="18"></i></span>
             </button>
+            </div>
           </form>
         </div>
 

@@ -174,6 +174,7 @@ document.addEventListener("DOMContentLoaded", () => {
   setupDietInputs();
   setupTemplateSetup();
   setupFlightFit();
+  setupPlannerSteps();
 
   // Render initial explorer state
   renderExploreTab();
@@ -520,6 +521,8 @@ const TRANSPORT_LABELS = { auto: "알아서", transit: "대중교통", car: "자
 const MOVE_LABELS = { walk: "도보", bus: "버스", express: "고속·시외버스", subway: "지하철", train: "기차", car: "자가용", taxi: "택시", bike: "자전거", ferry: "배", flight: "비행기" };
 const MOVE_ICONS = { walk: "walk", bus: "bus", express: "bus", subway: "train", train: "train", car: "car", taxi: "taxi", bike: "bike", ferry: "ferry", flight: "flight" };
 const CATEGORY_LABELS = { sightseeing: "관광", restaurant: "맛집", cafe: "카페", shopping: "쇼핑", hotel: "숙소", transit: "이동" };
+const CATEGORY_EMOJI = { sightseeing: "📍", restaurant: "🍜", cafe: "☕", shopping: "🛍️", hotel: "🏨", transit: "🚉" };
+const expandedMore = new Set();
 const WEEKDAYS = ["일", "월", "화", "수", "목", "금", "토"];
 
 function esc(str) {
@@ -804,7 +807,13 @@ function renderTemplates() {
     const styleText = template.style === "active" ? "액티비티" : "힐링";
     const budgetLabel = template.budget === "high" ? "럭셔리" : template.budget === "low" ? "가성비" : "일반";
 
+    const th = destTheme(template.destination);
     card.innerHTML = `
+      ${state.seniorMode ? "" : `<div class="tpl-cover" style="--c1:${th.c1};--c2:${th.c2}">
+        <span class="tpl-art" aria-hidden="true">${th.emoji}</span>
+        <span class="tpl-place">${esc(template.destination.replaceAll('/', ' · '))}</span>
+        <span class="tpl-days">${template.duration > 1 ? `${template.duration - 1}박 ${template.duration}일` : "당일"}</span>
+      </div>`}
       <h3>${esc(template.title.split(' (')[0])}</h3>
       <div class="template-meta-geo">${template.destination.replaceAll('/', ' · ')} · ${template.duration}일</div>
       ${state.seniorMode ? '' : `<p class="template-desc-single">${template.description}</p>`}
@@ -1839,6 +1848,10 @@ function setupPlaceActionDelegation() {
     else if (action === "alts") toggleAlternatives(id);
     else if (action === "suggest") suggestAlternatives(id, btn);
     else if (action === "pick") pickAlternative(id, parseInt(btn.getAttribute("data-alt"), 10));
+    else if (action === "more") {
+      if (expandedMore.has(place.id)) expandedMore.delete(place.id); else expandedMore.add(place.id);
+      renderTimeline();
+    }
     else if (action === "ticket") openTicketSite(place);
     else if (action === "flights") {
       if (expandedFlights.has(place.id)) expandedFlights.delete(place.id); else expandedFlights.add(place.id);
@@ -1880,30 +1893,48 @@ function renderTripMeta() {
     : t.source === "sample" ? `<span class="trip-source-badge sample">샘플</span>`
     : t.source === "shared" ? `<span class="trip-source-badge shared">공유받음</span>`
     : t.source === "template" ? `<span class="trip-source-badge sample">템플릿</span>` : "";
+  const th = destTheme(t.destination || t.title);
+  const end = start && t.days > 1 ? getTripDate(t, t.days) : null;
+  const dateTxt = start ? `${formatShortDate(start)}${end ? ` ~ ${formatShortDate(end)}` : ""} · ${t.days}일` : `날짜 정하기 · ${t.days}일`;
+  const people = parseInt(t.people, 10) || 0;
+  const cost = getTripCost(t);
+  const total = cost.total;
+  const moneyShort = total >= 10000 ? `₩${(Math.round(total / 1000) / 10).toLocaleString("ko-KR")}만` : formatWon(total);
+  const transportEmoji = { car: "🚗", rental: "🚙", taxi: "🚕", walk: "🚶", transit: "🚌", auto: "🧭" }[t.transport || "auto"];
   el.innerHTML = `
-    <div class="trip-meta-line">
-      ${badge}
-      <label class="trip-date-picker meta-item" title="출발일 지정">${window.icon("calendar", 16)}<input type="date" id="trip-start-date-input" value="${esc(t.startDate || "")}" aria-label="출발일"></label>
-      <span class="meta-item">${range}${t.days}일</span>
-      ${t.party ? `<span class="meta-item">${window.icon("users", 16)}${esc(t.party.split(",")[0])}</span>` : ""}
-      <label class="meta-item meta-transport" title="이동 수단">${window.icon(t.transport === "car" || t.transport === "rental" ? "car" : t.transport === "taxi" ? "taxi" : t.transport === "walk" ? "walk" : "bus", 16)}<select id="trip-transport-select" aria-label="이동 수단">
-        ${Object.entries(TRANSPORT_LABELS).map(([k, v]) => `<option value="${k}" ${(t.transport || "auto") === k ? "selected" : ""}>${v}</option>`).join("")}
-      </select></label>
+    <div class="trip-cover" style="--c1:${th.c1};--c2:${th.c2}">
+      <span class="cover-art" aria-hidden="true">${th.emoji}</span>
+      <div class="cover-top">${badge}<span class="cover-kicker">${t.days > 1 ? `${t.days - 1}박 ${t.days}일` : "당일치기"}${t.party ? ` · ${esc(t.party.split(",")[0])}` : ""}</span></div>
+      <div class="cover-dest">${esc((t.destination || t.title || "").replaceAll("/", " · "))}</div>
+      <div class="cover-chips">
+        <label class="cover-chip" title="출발일 지정">📅 <span>${dateTxt}</span><input type="date" id="trip-start-date-input" value="${esc(t.startDate || "")}" aria-label="출발일"></label>
+        ${(people || cost.people) ? `<span class="cover-chip static">👥 <span>${people || cost.people}명</span></span>` : ""}
+        <label class="cover-chip" title="이동 수단">${transportEmoji} <span>${TRANSPORT_LABELS[t.transport || "auto"]}</span><select id="trip-transport-select" aria-label="이동 수단">
+          ${Object.entries(TRANSPORT_LABELS).map(([k, v]) => `<option value="${k}" ${(t.transport || "auto") === k ? "selected" : ""}>${v}</option>`).join("")}
+        </select></label>
+        <button type="button" class="cover-chip" id="cover-budget-chip">💰 <span>${moneyShort}</span></button>
+      </div>
     </div>
     ${t.summary ? `<p class="trip-summary">${esc(t.summary)}</p>` : ""}
     ${!isActiveTripSaved() ? `
-      <div class="draft-banner">
-        <span>${t.source === "shared" ? "공유받은 일정이에요." : t.source === "template" ? "추천 템플릿이에요." : "아직 저장 전인 초안이에요."} 저장하면 내 일정에 추가되고 이후 수정은 자동 저장돼요.</span>
+      <div class="draft-banner compact">
+        <span>${t.source === "shared" ? "공유받은 일정" : t.source === "template" ? "추천 템플릿" : "저장 전 초안"}이에요. 저장하면 내 일정에 추가돼요.</span>
         <div class="draft-actions">
           ${t.genInput && window.RoutyAI.hasApiKey() ? `<button type="button" class="chip-btn" id="btn-regenerate">${window.icon("undo", 16)}다시 만들기</button>` : ""}
-          <button type="button" class="chip-btn chip-primary" id="btn-draft-save">${window.icon("check", 16)}내 일정에 저장</button>
+          <button type="button" class="chip-btn chip-primary" id="btn-draft-save">${window.icon("check", 16)}저장</button>
         </div>
       </div>` : ""}
-    <details class="budget-card" id="budget-card" ${budgetCardOpen ? "open" : ""}>${budgetCardHtml(t)}</details>
+    <details class="budget-card ${budgetCardOpen ? "" : "cover-hidden"}" id="budget-card" ${budgetCardOpen ? "open" : ""}>${budgetCardHtml(t)}</details>
     <div class="verify-status" id="verify-status"></div>
   `;
+  document.getElementById("cover-budget-chip").addEventListener("click", () => {
+    budgetCardOpen = !budgetCardOpen;
+    const bc = document.getElementById("budget-card");
+    bc.open = budgetCardOpen;
+    bc.classList.toggle("cover-hidden", !budgetCardOpen);
+  });
   document.getElementById("btn-edit-budget").addEventListener("click", (e) => { e.preventDefault(); openBudgetModal(); });
-  document.getElementById("budget-card").addEventListener("toggle", (e) => { budgetCardOpen = e.target.open; });
+  document.getElementById("budget-card").addEventListener("toggle", (e) => { budgetCardOpen = e.target.open; e.target.classList.toggle("cover-hidden", !e.target.open); });
   document.getElementById("trip-transport-select").addEventListener("change", (e) => changeTripTransport(e.target.value));
   const regen = document.getElementById("btn-regenerate");
   if (regen) regen.addEventListener("click", regenerateActiveTrip);
@@ -2222,7 +2253,29 @@ function formatMinutes(m) {
 
 
 
-const APP_VERSION = "v43";
+const APP_VERSION = "v44";
+
+// --- 목적지별 표지 색·그림 (사진 대신 저작권 걱정 없는 색과 이모지) ---
+const DEST_THEMES = [
+  [/교토|나라|오사카|간사이|고베/, "#FF7E5F", "#F7B267", "⛩️"],
+  [/도쿄|요코하마|하코네/, "#5B6CFF", "#8EC5FC", "🗼"],
+  [/후쿠오카|규슈|오키나와|나하/, "#00A3C4", "#7EE8C9", "🏝️"],
+  [/삿포로|홋카이도/, "#74B9FF", "#C8E6FF", "❄️"],
+  [/제주|서귀포|우도/, "#00A3C4", "#FFB547", "🍊"],
+  [/부산|해운대|광안리|여수|통영|거제/, "#0077B6", "#48CAE4", "🌊"],
+  [/강릉|속초|양양|동해|삼척/, "#2E86DE", "#7FD3F7", "🌅"],
+  [/경주|안동|전주|공주|부여/, "#B5651D", "#F2C14E", "🪷"],
+  [/서울|인천|수원/, "#4A4E9C", "#7F8CE0", "🏙️"],
+  [/대만|타이베이|홍콩|마카오|상하이/, "#E84A5F", "#FF847C", "🏮"],
+  [/방콕|태국|치앙마이|푸껫|다낭|베트남|나트랑|세부|발리|괌|사이판/, "#F7971E", "#FFD200", "🌴"],
+  [/파리|런던|로마|유럽|스페인|바르셀로나|이탈리아/, "#6D5BD0", "#C4A1FF", "🏰"],
+  [/뉴욕|미국|하와이|LA|로스앤젤레스/, "#11998E", "#38EF7D", "🗽"]
+];
+function destTheme(text) {
+  const t = String(text || "");
+  const hit = DEST_THEMES.find(([re]) => re.test(t));
+  return hit ? { c1: hit[1], c2: hit[2], emoji: hit[3] } : { c1: "#00A3C4", c2: "#007E9C", emoji: "✈️" };
+}
 
 // --- 식성: 매운 음식·못 먹는 음식 ---
 const SPICY_RE = /개미집|낙곱새|엽기|배떡|청년다방|불타는|홍짜장|교동짬뽕|마라|훠궈|떡볶이|엽떡|짬뽕|닭발|쭈꾸미|주꾸미|낙지|매운|불닭|아구찜|아귀찜|해물찜|닭갈비|찜닭|김치찜|김치찌개|부대찌개|육개장|감자탕|탄탄|쓰촨|사천|똠얌|커리|카레|태국 음식|인도 음식|麻辣|火锅|辣|spicy|sichuan|szechuan|hot ?pot|curry|thai|indian/i;
@@ -2435,7 +2488,8 @@ function stayPanelHtml(place) {
   const links = stayLinks(place, info);
   return `
     <div class="stay-panel">
-      <div class="stay-head"><strong>${when} · ${info.people}명${info.rooms > 1 ? ` · 객실 ${info.rooms}개` : ""}</strong><span>${est}</span></div>
+      <div class="tickets">${ticketHtml({ kind: "hotel", label: `${info.nights}박${info.rooms > 1 ? ` · 객실 ${info.rooms}개` : ""}`, fromCode: "", toCode: "", fromName: place.name, toName: "", date: info.checkin, dep: info.checkout ? `${info.checkout.getMonth() + 1}/${info.checkout.getDate()}` : "", arr: `${info.people}명` })}</div>
+      ${est ? `<div class="stay-hint">${est.replace(/^ · /, "")}</div>` : ""}
       ${info.checkin ? "" : `<div class="stay-hint warn">여행 시작일이 없어 날짜 없이 열려요. 위쪽 날짜 칸에서 출발일을 정하면 체크인·체크아웃까지 채워져요.</div>`}
       <div class="stay-links">
         ${links.map(l => `<button class="stay-link ${l.main ? "main" : ""}" data-action="staysite" data-site="${l.key}" data-id="${id}"><b>${esc(l.label)}</b><small>${esc(l.sub)}</small></button>`).join("")}
@@ -2527,7 +2581,10 @@ function railBlockHtml(trip, day) {
       ${modeBtns}
       <div class="stay-links">${sites.map(x => `<button class="stay-link" data-action="railsite" data-day="${day}" data-site="${x.k}"><b>${x.label}</b><small>${x.sub}</small></button>`).join("")}</div>
       ${ic && isOut ? localModeHtml(trip) : ""}
-      ${ic ? `${ic.times && (ic.times.out.arr || (ic.times.ret && ic.times.ret.dep)) ? `<div class="ff-booked">${ic.times.out.arr ? `<div>🎫 가는 편 ${ic.times.out.no ? `<b>${esc(ic.times.out.no)}</b> ` : ""}${esc(ic.from)} ${esc(ic.times.out.dep || "?")} → ${esc(ic.stop)} ${esc(ic.times.out.arr)}</div>` : ""}${ic.times.ret && ic.times.ret.dep ? `<div>🎫 오는 편 ${ic.times.ret.no ? `<b>${esc(ic.times.ret.no)}</b> ` : ""}${esc(ic.stop)} ${esc(ic.times.ret.dep)} → ${esc(ic.from)} ${esc(ic.times.ret.arr || "?")}</div>` : ""}</div>` : ""}
+      ${ic ? `<div class="tickets">
+        ${ticketHtml({ kind: ic.mode, label: `가는 ${ic.service}`, fromCode: ic.from.replace(/역|고속버스터미널|터미널|\(.*\)/g, "").slice(0, 5), toCode: ic.stop.replace(/역|고속버스터미널|종합버스터미널|터미널|\(.*\)/g, "").slice(0, 5), fromName: ic.from, toName: ic.stop, date: getTripDate(trip, 1), dep: ic.times && ic.times.out.dep, arr: ic.times && ic.times.out.arr, no: ic.times && ic.times.out.no })}
+        ${trip.places.some(p => p.intercity === "back") ? ticketHtml({ kind: ic.mode, label: `오는 ${ic.service}`, fromCode: ic.stop.replace(/역|고속버스터미널|종합버스터미널|터미널|\(.*\)/g, "").slice(0, 5), toCode: ic.from.replace(/역|고속버스터미널|터미널|\(.*\)/g, "").slice(0, 5), fromName: ic.stop, toName: ic.from, date: getTripDate(trip, trip.days || 1), dep: ic.times && ic.times.ret && ic.times.ret.dep, arr: ic.times && ic.times.ret && ic.times.ret.arr, no: ic.times && ic.times.ret && ic.times.ret.no }) : ""}
+      </div>
       <button class="btn btn-sm ff-open" data-action="groundfit" data-day="${day}">${window.icon("calendar", 16)}${ic.times ? "예매 시간 고치기" : "예매 시간 넣고 일정 맞추기"}</button>` : ""}
       <div class="stay-hint">${ic ? "" : "수단을 고르면 타는 곳·내리는 곳에 맞춰 첫날 시작과 마지막 날 끝이 바뀌어요. "}예매 사이트는 역·날짜를 미리 채울 수 없어서, 누르면 '${when} ${esc(icFrom)} → ${esc(icTo)}'를 복사해 두고 안내해요.</div>
     </div>` : ""}`;
@@ -2927,6 +2984,38 @@ async function fitTripToDrive() {
 }
 
 
+
+// --- AI 플래너 단계형 입력: ① 어디로·언제 → ② 누구와·어떻게 → ③ 스타일·식성 ---
+function setupPlannerSteps() {
+  const form = document.getElementById("planner-form");
+  if (!form) return;
+  const go = (n) => {
+    if (n > 1 && !document.getElementById("input-destination").value.trim()) {
+      n = 1;
+      showToast("어디로 갈지 먼저 적어 주세요.", 2500);
+      document.getElementById("input-destination").focus();
+    }
+    form.querySelectorAll(".pstep").forEach(el => el.classList.toggle("active", el.dataset.step === String(n)));
+    form.querySelectorAll(".pstep-tab").forEach(el => {
+      el.classList.toggle("active", el.dataset.goto === String(n));
+      el.classList.toggle("done", parseInt(el.dataset.goto, 10) < n);
+    });
+    const scroller = form.closest(".scrollable");
+    if (scroller) scroller.scrollTo({ top: 0, behavior: "smooth" });
+  };
+  window.plannerGoStep = go;
+  form.querySelectorAll("[data-goto]").forEach(b => b.addEventListener("click", () => go(parseInt(b.dataset.goto, 10))));
+  form.querySelectorAll("[data-next]").forEach(b => b.addEventListener("click", () => go(parseInt(b.dataset.next, 10))));
+  form.querySelectorAll("[data-quick]").forEach(b => b.addEventListener("click", () => {
+    if (!document.getElementById("input-destination").value.trim()) { go(1); return; }
+    document.getElementById("btn-generate-itinerary").click();
+  }));
+  // 목적지에서 엔터 → 다음 단계
+  document.getElementById("input-destination").addEventListener("keydown", (e) => {
+    if (e.key === "Enter" && !e.isComposing) { e.preventDefault(); go(2); }
+  });
+}
+
 // --- 날마다 기상 시간: 그 시간에 맞춰 그날 일정 다시 짜기 ---
 function openWakeDialog() {
   const trip = state.activeTrip;
@@ -3027,6 +3116,32 @@ async function applyWake(time, all) {
     form.classList.remove("loading");
     if (refineBtn.dataset.mode !== "undo") setRefineMode("normal");
   }
+}
+
+
+// --- 탑승권 모양 티켓 (항공·기차·버스·숙소) ---
+function ticketHtml(o) {
+  const icon = { flight: "✈", train: "🚄", express: "🚌", bus: "🚌", hotel: "🏨" }[o.kind] || "✈";
+  const d = o.date ? `${o.date.getMonth() + 1}/${o.date.getDate()}(${WEEKDAYS[o.date.getDay()]})` : "날짜 미정";
+  const booked = o.kind !== "hotel" && !!(o.dep || o.arr);
+  return `
+    <div class="ticket ${booked ? "booked" : ""}">
+      <div class="tk-main">
+        <div class="tk-label">${esc(o.label || "")}</div>
+        ${o.kind === "hotel" ? `<div class="tk-hotel"><span>${icon}</span><b>${esc(o.fromName || "")}</b></div>` : `<div class="tk-route">
+          <div class="tk-end"><b>${esc(o.fromCode || "")}</b><small>${esc(o.fromName || "")}</small></div>
+          <div class="tk-mid"><span>${icon}</span></div>
+          <div class="tk-end right"><b>${esc(o.toCode || "")}</b><small>${esc(o.toName || "")}</small></div>
+        </div>`}
+      </div>
+      <div class="tk-stub">
+        <div><small>${o.kind === "hotel" ? "체크인" : "날짜"}</small><b>${d}</b></div>
+        <div><small>${o.kind === "hotel" ? "체크아웃" : "출발"}</small><b>${esc(o.dep || "--:--")}</b></div>
+        <div><small>${o.kind === "hotel" ? "인원" : "도착"}</small><b>${esc(o.arr || "--:--")}</b></div>
+        ${o.no ? `<div><small>${o.kind === "flight" ? "편명" : "번호"}</small><b>${esc(o.no)}</b></div>` : ""}
+      </div>
+      ${booked && o.kind !== "hotel" ? `<span class="tk-stamp">예매 완료</span>` : ""}
+    </div>`;
 }
 
 // --- 항공권: 날짜·인원·구간을 채운 검색 화면 열기 ---
@@ -3178,9 +3293,17 @@ function flightPanelHtml(ft, id) {
   const { out, ret, people } = ft;
   const d = x => x.date ? `${x.date.getMonth() + 1}/${x.date.getDate()}` : "날짜 미정";
   const head = `${ret ? "왕복" : "편도"} · 가는 날 ${d(out)}${ret ? ` · 오는 날 ${d(ret)}` : ""} · ${people}명`;
+  const fl = (state.activeTrip && state.activeTrip.flights) || {};
+  const fo = fl.out && fl.out.from === out.from ? fl.out : {};
+  const fr = fl.ret && ret && fl.ret.from === ret.from ? fl.ret : {};
+  const nm = c => (AIRPORT_NAMES[c] || "").replace(/\(.*\)/, "");
   return `
       <div class="stay-panel flight-panel">
-        <div class="stay-head"><strong>${out.from} → ${out.to}${ret ? ` → ${ret.to}` : ""}</strong><span>${head}</span></div>
+        <div class="stay-head"><span>${head}</span></div>
+        <div class="tickets">
+          ${ticketHtml({ kind: "flight", label: "가는 편", fromCode: out.from, toCode: out.to, fromName: nm(out.from), toName: nm(out.to), date: out.date, dep: fo.dep, arr: fo.arr, no: fo.no })}
+          ${ret ? ticketHtml({ kind: "flight", label: "오는 편", fromCode: ret.from, toCode: ret.to, fromName: nm(ret.from), toName: nm(ret.to), date: ret.date, dep: fr.dep, arr: fr.arr, no: fr.no }) : ""}
+        </div>
         ${ft.guessed ? `<div class="stay-hint">출발 도시와 여행 날짜로 첫날 가는 편·마지막 날 오는 편을 잡았어요. 공항이 다르면 사이트에서 바꿔 주세요.</div>` : ""}
         ${out.date ? "" : `<div class="stay-hint warn">여행 시작일이 없어 날짜 없이 열려요. 위쪽 날짜 칸에서 출발일을 정하면 날짜까지 채워져요.</div>`}
         <div class="stay-links">
@@ -3189,7 +3312,6 @@ function flightPanelHtml(ft, id) {
         ${state.activeTrip && state.activeTrip.transport === "rental" ? `<div class="ic-modes local-modes"><span>렌터카 (도착 공항에서 인수)</span></div>
         <div class="stay-links rental-links">${RENTAL_SITES.map(x => `<button class="stay-link" data-action="rentalsite" data-site="${x.k}"><b>${x.label}</b><small>${x.sub}</small></button>`).join("")}</div>
         <div class="stay-hint">렌터카: ${esc(rentalHint(state.activeTrip))}</div>` : ""}
-        ${bookedFlightsHtml(state.activeTrip)}
         <button class="btn btn-sm ff-open" data-action="flightfit" data-id="${id}">${window.icon("calendar", 16)}${state.activeTrip && state.activeTrip.flights ? "항공편 시간 고치기" : "예약한 항공편 시간 넣고 일정 맞추기"}</button>
         <div class="stay-hint">항공권 가격은 사이트에서 실시간으로 확인돼요. 수하물 포함 여부는 항공사마다 달라요.</div>
       </div>`;
@@ -4537,6 +4659,7 @@ function shiftDayFrom(placeId, delta) {
 
 function renderTimeline() {
   const container = document.getElementById("timeline-places-container");
+  container.classList.toggle("tl2-wrap", !state.seniorMode);
   if (!container || !state.activeTrip) return;
 
   container.innerHTML = "";
@@ -4613,37 +4736,54 @@ function renderTimeline() {
         if (e.target.closest("button, a, input")) return;
         focusPlaceOnMap(place.id);
       };
+      card.classList.add("tl2");
+      const tr = parseTimeRange(place.time);
+      const tStart = tr ? minutesToHHMM(tr[0]) : esc((place.time || "").split("-")[0].trim());
+      const tEnd = tr && tr[1] !== tr[0] ? minutesToHHMM(tr[1]) : "";
+      const isAirportFlight = isAirportPlace(place) && needsFlight(state.activeTrip) && !(place.move && place.move.mode === "flight") && synthFlightTrip(state.activeTrip, place);
+      // 카드마다 꼭 필요한 버튼 하나 (숙소: 최저가, 식당·카페: TOP 5 또는 후보, 공항: 항공권)
+      let contextChip = "";
+      if (place.category === "hotel") contextChip = `<button class="chip-btn chip-stay ${expandedStays.has(place.id) ? "on" : ""}" data-action="stays" data-id="${id}">${window.icon("wallet", 16)}${expandedStays.has(place.id) ? "접기" : "최저가 숙소"}</button>`;
+      else if (isAirportFlight) contextChip = `<button class="chip-btn chip-flight ${expandedFlights.has(place.id) ? "on" : ""}" data-action="flights" data-id="${id}">${window.icon("flight", 16)}${expandedFlights.has(place.id) ? "접기" : "항공권 찾기"}</button>`;
+      else contextChip = topChipHtml(place) || altChipHtml(place);
+      const altInMore = contextChip && topChipHtml(place) ? altChipHtml(place) : "";
+      const moreOpen = expandedMore.has(place.id);
       card.innerHTML = `
-        <div class="timeline-dot"></div>
-        <div class="timeline-item-header">
-          <span class="timeline-time">${index + 1} · ${esc(place.time)} · ${catKorean}${changed ? ` <em class="changed-badge">AI 변경</em>` : ""}${place.coordFixed ? ` <em class="fixed-badge" title="지도 데이터로 위치를 보정했어요">위치 보정</em>` : ""}${place.autoTop ? ` <em class="top-badge">★ Google ${place.autoTop === "count" ? "리뷰수" : "별점"} 1위</em>` : ""}</span>
+        <div class="tl-time"><b>${tStart}</b>${tEnd ? `<span>${tEnd}</span>` : ""}</div>
+        <div class="tl-rail"><span class="tl-icon">${CATEGORY_EMOJI[place.category] || "📍"}</span></div>
+        <div class="tl-body">
+          <div class="tl-head">
+            <span class="tl-cat">${catKorean}</span>
+            ${changed ? `<em class="changed-badge">AI 변경</em>` : ""}${place.coordFixed ? `<em class="fixed-badge" title="지도 데이터로 위치를 보정했어요">위치 보정</em>` : ""}${place.autoTop ? `<em class="top-badge">★ Google ${place.autoTop === "count" ? "리뷰수" : "별점"} 1위</em>` : ""}
+            ${priceHtml}
+          </div>
           ${placeNameHtml(place)}
-          ${priceHtml}
+          ${placeInfoHtml(place)}
+          ${place.description && !/Google 지도에서 고른 곳$/.test(place.description) ? `<p class="timeline-desc">${esc(place.description)}</p>` : ""}
+          ${tips ? `<p class="timeline-desc transit-tip">${tips}</p>` : ""}
+          ${coordWarn ? `<div>${coordWarn}</div>` : ""}
+          <div class="timeline-actions">
+            ${place.intercity === "back" ? "" : `<button class="chip-btn chip-navi" data-action="navi" data-id="${id}">${window.icon("navigate", 16)}길안내</button>`}
+            <button class="chip-btn" data-action="map" data-id="${id}">${window.icon("map", 16)}지도</button>
+            ${contextChip}
+            <button class="chip-btn chip-icon chip-more ${moreOpen ? "on" : ""}" data-action="more" data-id="${id}" aria-label="더보기" aria-expanded="${moreOpen}">${window.icon("more", 18)}</button>
+            <span class="edit-only-actions">
+              <button class="chip-btn chip-icon" data-action="up" data-id="${id}" ${index === 0 ? "disabled" : ""} aria-label="위로">${window.icon("up", 18)}</button>
+              <button class="chip-btn chip-icon" data-action="down" data-id="${id}" ${index === dayPlaces.length - 1 ? "disabled" : ""} aria-label="아래로">${window.icon("down", 18)}</button>
+              <button class="chip-btn chip-icon chip-danger" data-action="delete" data-id="${id}" aria-label="삭제">${window.icon("trash", 18)}</button>
+            </span>
+          </div>
+          ${moreOpen ? `<div class="timeline-actions more-row">
+            ${isTransit ? "" : `<button class="chip-btn" data-action="search" data-id="${id}">${window.icon("search", 16)}${searchLabel}</button>`}
+            <button class="chip-btn" data-action="edit" data-id="${id}">${window.icon("pencil", 16)}편집</button>
+            ${altInMore}
+            ${place.intercity ? "" : `<button class="chip-btn chip-remove" data-action="remove" data-id="${id}">${window.icon("trash", 16)}빼기</button>`}
+          </div>` : ""}
+          ${expandedAlts.has(place.id) ? altListHtml(place) : ""}
+          ${topPanel.placeId === place.id ? topPanelHtml(place) : ""}
+          ${expandedStays.has(place.id) ? stayPanelHtml(place) : ""}
+          ${isAirportFlight && expandedFlights.has(place.id) ? flightPanelHtml(synthFlightTrip(state.activeTrip, place), esc(place.id)) : ""}
         </div>
-        ${placeInfoHtml(place)}
-        ${place.description && !/Google 지도에서 고른 곳$/.test(place.description) ? `<p class="timeline-desc">${esc(place.description)}</p>` : ""}
-        ${tips ? `<p class="timeline-desc transit-tip">${tips}</p>` : ""}
-        ${coordWarn ? `<div>${coordWarn}</div>` : ""}
-        <div class="timeline-actions">
-          <button class="chip-btn chip-primary" data-action="map" data-id="${id}">${window.icon("map", 16)}지도</button>
-          ${place.intercity === "back" ? "" : `<button class="chip-btn chip-navi" data-action="navi" data-id="${id}">${window.icon("navigate", 16)}길안내</button>`}
-          ${isTransit ? "" : `<button class="chip-btn" data-action="search" data-id="${id}">${window.icon("search", 16)}${searchLabel}</button>`}
-          <button class="chip-btn" data-action="edit" data-id="${id}">${window.icon("pencil", 16)}편집</button>
-          ${place.intercity ? "" : `<button class="chip-btn chip-remove" data-action="remove" data-id="${id}">${window.icon("trash", 16)}빼기</button>`}
-          ${altChipHtml(place)}
-          ${topChipHtml(place)}
-          ${isAirportPlace(place) && needsFlight(state.activeTrip) && !(place.move && place.move.mode === "flight") && synthFlightTrip(state.activeTrip, place) ? `<button class="chip-btn chip-flight ${expandedFlights.has(place.id) ? "on" : ""}" data-action="flights" data-id="${id}">${window.icon("flight", 16)}${expandedFlights.has(place.id) ? "접기" : "항공권 찾기"}</button>` : ""}
-          ${place.category === "hotel" ? `<button class="chip-btn chip-stay ${expandedStays.has(place.id) ? "on" : ""}" data-action="stays" data-id="${esc(place.id)}">${window.icon("wallet", 16)}${expandedStays.has(place.id) ? "접기" : "최저가 숙소"}</button>` : ""}
-          <span class="edit-only-actions">
-            <button class="chip-btn chip-icon" data-action="up" data-id="${id}" ${index === 0 ? "disabled" : ""} aria-label="위로">${window.icon("up", 18)}</button>
-            <button class="chip-btn chip-icon" data-action="down" data-id="${id}" ${index === dayPlaces.length - 1 ? "disabled" : ""} aria-label="아래로">${window.icon("down", 18)}</button>
-            <button class="chip-btn chip-icon chip-danger" data-action="delete" data-id="${id}" aria-label="삭제">${window.icon("trash", 18)}</button>
-          </span>
-        </div>
-        ${expandedAlts.has(place.id) ? altListHtml(place) : ""}
-        ${topPanel.placeId === place.id ? topPanelHtml(place) : ""}
-        ${expandedStays.has(place.id) ? stayPanelHtml(place) : ""}
-        ${isAirportPlace(place) && needsFlight(state.activeTrip) && !(place.move && place.move.mode === "flight") && expandedFlights.has(place.id) && synthFlightTrip(state.activeTrip, place) ? flightPanelHtml(synthFlightTrip(state.activeTrip, place), esc(place.id)) : ""}
       `;
     }
 
