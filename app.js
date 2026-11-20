@@ -488,7 +488,6 @@ function switchTab(tabName) {
     renderSavedTrips();
   } else if (tabName === 'planner') {
     updateAiNotice();
-    renderPlannerGreet();
   } else if (tabName === 'explore') {
     const searchInput = document.getElementById("explore-search-input");
     if (searchInput) {
@@ -2762,7 +2761,7 @@ function formatMinutes(m) {
 
 
 
-const APP_VERSION = "v55";
+const APP_VERSION = "v56";
 
 // --- 목적지별 표지 색·그림 (사진 대신 저작권 걱정 없는 색과 이모지) ---
 const DEST_THEMES = [
