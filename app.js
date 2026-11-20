@@ -806,7 +806,13 @@ function renderTemplates() {
     const styleText = template.style === "active" ? "액티비티" : "힐링";
     const budgetLabel = template.budget === "high" ? "럭셔리" : template.budget === "low" ? "가성비" : "일반";
 
+    const th = destTheme(template.destination);
     card.innerHTML = `
+      ${state.seniorMode ? "" : `<div class="tpl-cover" style="--c1:${th.c1};--c2:${th.c2}">
+        <span class="tpl-art" aria-hidden="true">${th.emoji}</span>
+        <span class="tpl-place">${esc(template.destination.replaceAll('/', ' · '))}</span>
+        <span class="tpl-days">${template.duration > 1 ? `${template.duration - 1}박 ${template.duration}일` : "당일"}</span>
+      </div>`}
       <h3>${esc(template.title.split(' (')[0])}</h3>
       <div class="template-meta-geo">${template.destination.replaceAll('/', ' · ')} · ${template.duration}일</div>
       ${state.seniorMode ? '' : `<p class="template-desc-single">${template.description}</p>`}
@@ -2257,7 +2263,7 @@ const DEST_THEMES = [
   [/제주|서귀포|우도/, "#00A3C4", "#FFB547", "🍊"],
   [/부산|해운대|광안리|여수|통영|거제/, "#0077B6", "#48CAE4", "🌊"],
   [/강릉|속초|양양|동해|삼척/, "#2E86DE", "#7FD3F7", "🌅"],
-  [/경주|안동|전주|공주|부여/, "#B5651D", "#F2C14E", "🏯"],
+  [/경주|안동|전주|공주|부여/, "#B5651D", "#F2C14E", "🪷"],
   [/서울|인천|수원/, "#4A4E9C", "#7F8CE0", "🏙️"],
   [/대만|타이베이|홍콩|마카오|상하이/, "#E84A5F", "#FF847C", "🏮"],
   [/방콕|태국|치앙마이|푸껫|다낭|베트남|나트랑|세부|발리|괌|사이판/, "#F7971E", "#FFD200", "🌴"],
