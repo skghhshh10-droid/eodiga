@@ -1253,3 +1253,5 @@ input[type="time"]::-webkit-calendar-picker-indicator { margin-left: auto; }
 [data-theme="dark"] .tk-sug-tag { color: #FFC56B; }
 .bk-modes .seg-btn { border: 1px solid var(--border-color); background: var(--card-bg-solid); padding: 8px 6px; }
 .bk-modes .seg-btn.on { background: var(--primary-light); color: var(--primary-solid); border-color: var(--primary-solid); font-weight: 800; }
+.pi-more { align-self: flex-start; margin: 4px 0 2px; padding: 3px 10px; border-radius: 999px; border: 1px solid var(--border-color); background: transparent; color: var(--text-muted); font-size: var(--fs-xs); font-weight: 700; cursor: pointer; }
+.pi-more.on { color: var(--primary-solid); border-color: var(--primary-solid); }
