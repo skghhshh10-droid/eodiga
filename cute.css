@@ -318,3 +318,47 @@ input:focus, select:focus, textarea:focus { border-color: var(--primary-solid) !
   .home-greet .mascot { width: 84px; height: auto; }
   .home-greet .mascot-bubble { font-size: 20px; padding: 14px 18px; }
 }
+
+/* =========================================================
+   아이패드: 왼쪽 사이드바 대신 아래 가운데 떠 있는 알약 탭
+   ========================================================= */
+@media (min-width: 700px) and (min-height: 600px) {
+  :root { --pill-gap: 14px; }
+  #desktop-header { display: none !important; }
+  #device-wrapper { flex-direction: column !important; }
+  /* 화면은 알약 탭 위에서 끝나서, 아래 입력창·버튼이 가려지지 않게 */
+  .app-screen { height: calc(100% - var(--tabbar-h) - var(--safe-b) - var(--pill-gap) * 2) !important; }
+  #screen-explore .app-header { display: flex !important; }
+  #screen-explore .screen-content { padding-top: 8px; }
+
+  #bottom-nav {
+    display: flex !important;
+    position: fixed;
+    left: 50%;
+    bottom: calc(var(--safe-b) + var(--pill-gap));
+    transform: translateX(-50%);
+    width: auto;
+    height: var(--tabbar-h);
+    padding: 6px !important;
+    gap: 4px;
+    border-radius: 999px;
+    border: 2px solid var(--border-color);
+    background: var(--nav-bg);
+    box-shadow: 0 4px 0 rgba(58, 48, 70, 0.06), 0 14px 32px rgba(58, 48, 70, 0.14);
+    z-index: 900;
+  }
+  [data-theme="dark"] #bottom-nav { box-shadow: 0 4px 0 rgba(0, 0, 0, 0.25), 0 14px 32px rgba(0, 0, 0, 0.4); }
+  #bottom-nav .nav-item {
+    flex: 0 0 auto !important;
+    flex-direction: row;
+    gap: 8px;
+    min-height: 0;
+    height: 100%;
+    padding: 0 20px !important;
+    border-radius: 999px;
+    transition: background 0.2s ease;
+  }
+  #bottom-nav .nav-item .nav-icon { width: auto; height: auto; background: none !important; transform: none !important; }
+  #bottom-nav .nav-item .nav-label { font-size: 17px; }
+  #bottom-nav .nav-item.active { background: var(--primary-light); }
+}
