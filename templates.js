@@ -1173,5 +1173,1309 @@ function generateItinerary(destination, days, budget, style) {
 }
 
 // Export values so they are globally accessible in the browser
+
+// --- 해외 추천 코스 (일본·중국·대만) ---
+Object.assign(PREDEFINED_TEMPLATES, {
+ "hokkaido": {
+  "id": "hokkaido",
+  "title": "눈꽃 삿포로·오타루 (홋카이도 3일)",
+  "description": "오도리 공원과 오타루 운하의 겨울 낭만, 수프카레·징기스칸·해산물덮밥까지 먹는 재미가 가득한 2박 3일",
+  "destination": "삿포로/오타루",
+  "duration": 3,
+  "budget": "medium",
+  "style": "relaxing",
+  "theme": {
+   "c1": "#5DA9E9",
+   "c2": "#D6ECFF",
+   "emoji": "❄️"
+  },
+  "region": "overseas",
+  "places": [
+   {
+    "day": 1,
+    "id": "hk1_1",
+    "name": "신치토세 공항(CTS)",
+    "time": "11:30 - 12:30",
+    "lat": 42.7752,
+    "lng": 141.6923,
+    "category": "transit",
+    "description": "입국 후 JR 쾌속 에어포트로 삿포로역까지 약 40분.",
+    "bookingUrl": "",
+    "move": {
+     "mode": "flight",
+     "minutes": 170,
+     "from": "인천국제공항(ICN)",
+     "to": "신치토세공항(CTS)",
+     "note": "09:00 출발 예상"
+    }
+   },
+   {
+    "day": 1,
+    "id": "hk1_2",
+    "name": "수프카레 전문점 (점심)",
+    "time": "13:30 - 14:30",
+    "lat": 43.0618,
+    "lng": 141.3545,
+    "category": "restaurant",
+    "description": "삿포로 명물 수프카레. 맵기 단계는 0~1단계로 주문하면 맵지 않아요.",
+    "bookingUrl": "https://search.naver.com/search.naver?query=수프카레+전문점",
+    "cuisine": "수프카레"
+   },
+   {
+    "day": 1,
+    "id": "hk1_3",
+    "name": "오도리 공원 & 삿포로 TV 타워",
+    "time": "15:00 - 16:30",
+    "lat": 43.0605,
+    "lng": 141.3488,
+    "category": "sightseeing",
+    "description": "도심을 가로지르는 공원. 겨울엔 화이트 일루미네이션과 눈축제 장소.",
+    "bookingUrl": "https://search.naver.com/search.naver?query=오도리+공원+&+삿포로+TV+타워"
+   },
+   {
+    "day": 1,
+    "id": "hk1_4",
+    "name": "삿포로 시계탑",
+    "time": "16:40 - 17:20",
+    "lat": 43.0625,
+    "lng": 141.3536,
+    "category": "sightseeing",
+    "description": "1878년에 지은 삿포로의 상징. 내부 전시관 관람.",
+    "bookingUrl": "https://search.naver.com/search.naver?query=삿포로+시계탑"
+   },
+   {
+    "day": 1,
+    "id": "hk1_5",
+    "name": "징기스칸 양고기 전문점 (저녁)",
+    "time": "18:00 - 19:30",
+    "lat": 43.0556,
+    "lng": 141.353,
+    "category": "restaurant",
+    "description": "스스키노의 숯불 징기스칸. 철판에 양고기와 채소를 구워 먹어요.",
+    "bookingUrl": "https://search.naver.com/search.naver?query=징기스칸+양고기+전문점",
+    "cuisine": "징기스칸"
+   },
+   {
+    "day": 1,
+    "id": "hk1_6",
+    "name": "스스키노 인근 호텔 (숙소)",
+    "time": "20:30 - 21:00",
+    "lat": 43.056,
+    "lng": 141.3545,
+    "category": "hotel",
+    "description": "번화가 스스키노 도보권 비즈니스호텔.",
+    "bookingUrl": "https://search.naver.com/search.naver?query=스스키노+인근+호텔"
+   },
+   {
+    "day": 2,
+    "id": "hk2_1",
+    "name": "니조 시장 해산물 덮밥 (아침)",
+    "time": "08:00 - 08:45",
+    "lat": 43.0586,
+    "lng": 141.358,
+    "category": "restaurant",
+    "description": "새벽부터 여는 시장에서 연어·게살·성게 카이센동 아침.",
+    "bookingUrl": "https://search.naver.com/search.naver?query=니조+시장+해산물+덮밥",
+    "cuisine": "카이센동"
+   },
+   {
+    "day": 2,
+    "id": "hk2_2",
+    "name": "JR 삿포로역 → 오타루역",
+    "time": "09:30 - 10:30",
+    "lat": 43.1979,
+    "lng": 141.0024,
+    "category": "transit",
+    "description": "JR 쾌속 에어포트로 약 40분, 바다를 끼고 달리는 구간.",
+    "bookingUrl": "",
+    "move": {
+     "mode": "train",
+     "minutes": 40,
+     "note": "JR 하코다테본선"
+    }
+   },
+   {
+    "day": 2,
+    "id": "hk2_3",
+    "name": "오타루 운하",
+    "time": "10:40 - 12:00",
+    "lat": 43.1997,
+    "lng": 140.9946,
+    "category": "sightseeing",
+    "description": "석조 창고가 늘어선 운하 산책. 눈 내린 풍경이 특히 아름다워요.",
+    "bookingUrl": "https://search.naver.com/search.naver?query=오타루+운하"
+   },
+   {
+    "day": 2,
+    "id": "hk2_4",
+    "name": "오타루 초밥 거리 (점심)",
+    "time": "12:10 - 13:10",
+    "lat": 43.195,
+    "lng": 141.001,
+    "category": "restaurant",
+    "description": "항구 도시 오타루의 신선한 초밥 런치.",
+    "bookingUrl": "https://search.naver.com/search.naver?query=오타루+초밥+거리",
+    "cuisine": "초밥"
+   },
+   {
+    "day": 2,
+    "id": "hk2_5",
+    "name": "사카이마치 거리 & 오르골당",
+    "time": "13:20 - 15:00",
+    "lat": 43.1925,
+    "lng": 141.0041,
+    "category": "shopping",
+    "description": "유리공예 상점과 르타오 본점, 오르골당이 모인 거리.",
+    "bookingUrl": "https://search.naver.com/search.naver?query=사카이마치+거리+&+오르골당"
+   },
+   {
+    "day": 2,
+    "id": "hk2_6",
+    "name": "르타오 본점 카페",
+    "time": "15:00 - 15:40",
+    "lat": 43.1922,
+    "lng": 141.0058,
+    "category": "cafe",
+    "description": "오타루 명물 더블 프로마주 치즈케이크.",
+    "bookingUrl": "https://search.naver.com/search.naver?query=르타오+본점+카페",
+    "cuisine": "디저트 카페"
+   },
+   {
+    "day": 2,
+    "id": "hk2_7",
+    "name": "JR 오타루역 → 삿포로역",
+    "time": "16:00 - 17:00",
+    "lat": 43.0687,
+    "lng": 141.3508,
+    "category": "transit",
+    "description": "삿포로로 돌아오기.",
+    "bookingUrl": "",
+    "move": {
+     "mode": "train",
+     "minutes": 40
+    }
+   },
+   {
+    "day": 2,
+    "id": "hk2_8",
+    "name": "대게·털게 요리 전문점 (저녁)",
+    "time": "18:00 - 19:30",
+    "lat": 43.0557,
+    "lng": 141.352,
+    "category": "restaurant",
+    "description": "홋카이도 게 요리 코스. 대게 샤브샤브나 털게 한 마리 정식.",
+    "bookingUrl": "https://search.naver.com/search.naver?query=대게·털게+요리+전문점",
+    "cuisine": "게 요리"
+   },
+   {
+    "day": 2,
+    "id": "hk2_9",
+    "name": "스스키노 인근 호텔 (숙소)",
+    "time": "20:30 - 21:00",
+    "lat": 43.056,
+    "lng": 141.3545,
+    "category": "hotel",
+    "description": "같은 숙소 연박.",
+    "bookingUrl": "https://search.naver.com/search.naver?query=스스키노+인근+호텔"
+   },
+   {
+    "day": 3,
+    "id": "hk3_1",
+    "name": "호텔 근처 카페 조식 (아침)",
+    "time": "08:00 - 08:45",
+    "lat": 43.057,
+    "lng": 141.353,
+    "category": "restaurant",
+    "description": "홋카이도 우유 푸딩과 빵으로 가벼운 아침.",
+    "bookingUrl": "https://search.naver.com/search.naver?query=호텔+근처+카페+조식",
+    "cuisine": "베이커리"
+   },
+   {
+    "day": 3,
+    "id": "hk3_2",
+    "name": "시로이 코이비토 파크",
+    "time": "09:30 - 11:00",
+    "lat": 43.0889,
+    "lng": 141.2715,
+    "category": "sightseeing",
+    "description": "하얀 연인 과자 공장 견학과 영국풍 정원.",
+    "bookingUrl": "https://search.naver.com/search.naver?query=시로이+코이비토+파크"
+   },
+   {
+    "day": 3,
+    "id": "hk3_3",
+    "name": "삿포로 라멘 골목 (점심)",
+    "time": "11:30 - 12:30",
+    "lat": 43.0547,
+    "lng": 141.354,
+    "category": "restaurant",
+    "description": "진한 된장(미소) 라멘의 원조 골목.",
+    "bookingUrl": "https://search.naver.com/search.naver?query=삿포로+라멘+골목",
+    "cuisine": "미소라멘"
+   },
+   {
+    "day": 3,
+    "id": "hk3_4",
+    "name": "다누키코지 상점가",
+    "time": "12:40 - 13:20",
+    "lat": 43.0574,
+    "lng": 141.3525,
+    "category": "shopping",
+    "description": "200년 된 아케이드 상점가에서 기념품 쇼핑.",
+    "bookingUrl": "https://search.naver.com/search.naver?query=다누키코지+상점가"
+   },
+   {
+    "day": 3,
+    "id": "hk3_5",
+    "name": "신치토세 공항(CTS)",
+    "time": "15:00 - 17:00",
+    "lat": 42.7752,
+    "lng": 141.6923,
+    "category": "transit",
+    "description": "공항 안 로이스 초콜릿·라멘 도장에서 마지막 쇼핑 후 출국.",
+    "bookingUrl": ""
+   },
+   {
+    "day": 3,
+    "id": "hk3_6",
+    "name": "인천국제공항(ICN)",
+    "time": "20:00 - 20:30",
+    "lat": 37.4602,
+    "lng": 126.4407,
+    "category": "transit",
+    "description": "귀국.",
+    "bookingUrl": "",
+    "move": {
+     "mode": "flight",
+     "minutes": 190,
+     "from": "신치토세공항(CTS)",
+     "to": "인천국제공항(ICN)",
+     "note": ""
+    }
+   }
+  ]
+ },
+ "shanghai": {
+  "id": "shanghai",
+  "title": "야경과 미식 상하이 (상하이 3일)",
+  "description": "와이탄 야경과 예원·티엔즈팡 골목, 대한민국 임시정부 유적지, 샤오롱바오까지 담은 2박 3일",
+  "destination": "상하이",
+  "duration": 3,
+  "budget": "medium",
+  "style": "active",
+  "theme": {
+   "c1": "#C0392B",
+   "c2": "#F5B041",
+   "emoji": "🌃"
+  },
+  "region": "overseas",
+  "places": [
+   {
+    "day": 1,
+    "id": "sh1_1",
+    "name": "상하이 푸둥 국제공항(PVG)",
+    "time": "11:00 - 12:00",
+    "lat": 31.1443,
+    "lng": 121.8083,
+    "category": "transit",
+    "description": "입국 후 자기부상열차(맥레브)와 지하철 2호선으로 시내 이동.",
+    "bookingUrl": "",
+    "move": {
+     "mode": "flight",
+     "minutes": 130,
+     "from": "인천국제공항(ICN)",
+     "to": "상하이푸둥공항(PVG)",
+     "note": "09:00 출발 예상(현지 10:10 도착)"
+    }
+   },
+   {
+    "day": 1,
+    "id": "sh1_2",
+    "name": "샤오롱바오 전문점 (점심)",
+    "time": "13:00 - 14:00",
+    "lat": 31.2355,
+    "lng": 121.479,
+    "category": "restaurant",
+    "description": "난징루 근처 육즙 가득한 샤오롱바오.",
+    "bookingUrl": "https://search.naver.com/search.naver?query=샤오롱바오+전문점",
+    "cuisine": "샤오롱바오"
+   },
+   {
+    "day": 1,
+    "id": "sh1_3",
+    "name": "난징루 보행가",
+    "time": "14:10 - 15:30",
+    "lat": 31.2355,
+    "lng": 121.479,
+    "category": "shopping",
+    "description": "상하이 최대 번화가 산책과 쇼핑.",
+    "bookingUrl": "https://search.naver.com/search.naver?query=난징루+보행가"
+   },
+   {
+    "day": 1,
+    "id": "sh1_4",
+    "name": "대한민국 임시정부 유적지",
+    "time": "16:00 - 17:30",
+    "lat": 31.2183,
+    "lng": 121.4744,
+    "category": "sightseeing",
+    "description": "마당로의 임시정부 청사. 독립운동의 역사를 보는 곳(월요일 휴관).",
+    "bookingUrl": "https://search.naver.com/search.naver?query=대한민국+임시정부+유적지"
+   },
+   {
+    "day": 1,
+    "id": "sh1_5",
+    "name": "신천지 (저녁)",
+    "time": "17:40 - 18:40",
+    "lat": 31.2196,
+    "lng": 121.4747,
+    "category": "restaurant",
+    "description": "석고문 골목을 개조한 신천지의 상하이 요리.",
+    "bookingUrl": "https://search.naver.com/search.naver?query=신천지",
+    "cuisine": "상하이 요리"
+   },
+   {
+    "day": 1,
+    "id": "sh1_6",
+    "name": "와이탄 야경",
+    "time": "19:30 - 21:00",
+    "lat": 31.24,
+    "lng": 121.49,
+    "category": "sightseeing",
+    "description": "황푸강 너머 동방명주와 루자쭈이 스카이라인 야경.",
+    "bookingUrl": "https://search.naver.com/search.naver?query=와이탄+야경"
+   },
+   {
+    "day": 1,
+    "id": "sh1_7",
+    "name": "와이탄 인근 호텔 (숙소)",
+    "time": "21:30 - 22:00",
+    "lat": 31.238,
+    "lng": 121.485,
+    "category": "hotel",
+    "description": "와이탄·난징루 도보권 호텔.",
+    "bookingUrl": "https://search.naver.com/search.naver?query=와이탄+인근+호텔"
+   },
+   {
+    "day": 2,
+    "id": "sh2_1",
+    "name": "성지엔바오 노점 (아침)",
+    "time": "08:00 - 08:45",
+    "lat": 31.229,
+    "lng": 121.48,
+    "category": "restaurant",
+    "description": "바닥을 바삭하게 구운 군만두 성지엔바오로 현지식 아침.",
+    "bookingUrl": "https://search.naver.com/search.naver?query=성지엔바오+노점",
+    "cuisine": "성지엔바오"
+   },
+   {
+    "day": 2,
+    "id": "sh2_2",
+    "name": "예원 & 예원상장",
+    "time": "09:30 - 11:30",
+    "lat": 31.2272,
+    "lng": 121.4921,
+    "category": "sightseeing",
+    "description": "명나라 정원 예원과 전통 상점가. 오전에 가야 덜 붐벼요.",
+    "bookingUrl": "https://search.naver.com/search.naver?query=예원+&+예원상장"
+   },
+   {
+    "day": 2,
+    "id": "sh2_3",
+    "name": "예원 딤섬 레스토랑 (점심)",
+    "time": "11:40 - 12:40",
+    "lat": 31.2265,
+    "lng": 121.49,
+    "category": "restaurant",
+    "description": "예원 근처 딤섬 점심.",
+    "bookingUrl": "https://search.naver.com/search.naver?query=예원+딤섬+레스토랑",
+    "cuisine": "딤섬"
+   },
+   {
+    "day": 2,
+    "id": "sh2_4",
+    "name": "상하이 타워 전망대",
+    "time": "13:30 - 15:00",
+    "lat": 31.2335,
+    "lng": 121.5055,
+    "category": "sightseeing",
+    "description": "632m 중국 최고층 빌딩의 118층 전망대.",
+    "bookingUrl": "https://search.naver.com/search.naver?query=상하이+타워+전망대"
+   },
+   {
+    "day": 2,
+    "id": "sh2_5",
+    "name": "티엔즈팡",
+    "time": "15:30 - 17:30",
+    "lat": 31.2097,
+    "lng": 121.4687,
+    "category": "shopping",
+    "description": "좁은 골목에 공방·카페가 모인 예술 거리.",
+    "bookingUrl": "https://search.naver.com/search.naver?query=티엔즈팡"
+   },
+   {
+    "day": 2,
+    "id": "sh2_6",
+    "name": "항저우·상하이 가정식 (저녁)",
+    "time": "18:00 - 19:30",
+    "lat": 31.211,
+    "lng": 121.47,
+    "category": "restaurant",
+    "description": "홍샤오러우(간장 돼지조림) 등 달콤 짭짤한 상하이 가정식.",
+    "bookingUrl": "https://search.naver.com/search.naver?query=항저우·상하이+가정식",
+    "cuisine": "상하이 요리"
+   },
+   {
+    "day": 2,
+    "id": "sh2_7",
+    "name": "황푸강 유람선",
+    "time": "20:00 - 21:00",
+    "lat": 31.242,
+    "lng": 121.491,
+    "category": "sightseeing",
+    "description": "배에서 보는 와이탄과 루자쭈이 야경.",
+    "bookingUrl": "https://search.naver.com/search.naver?query=황푸강+유람선"
+   },
+   {
+    "day": 2,
+    "id": "sh2_8",
+    "name": "와이탄 인근 호텔 (숙소)",
+    "time": "21:30 - 22:00",
+    "lat": 31.238,
+    "lng": 121.485,
+    "category": "hotel",
+    "description": "같은 숙소 연박.",
+    "bookingUrl": "https://search.naver.com/search.naver?query=와이탄+인근+호텔"
+   },
+   {
+    "day": 3,
+    "id": "sh3_1",
+    "name": "호텔 근처 죽·만두집 (아침)",
+    "time": "08:00 - 08:45",
+    "lat": 31.237,
+    "lng": 121.484,
+    "category": "restaurant",
+    "description": "흰죽과 만두로 가벼운 아침.",
+    "bookingUrl": "https://search.naver.com/search.naver?query=호텔+근처+죽·만두집",
+    "cuisine": "중국식 아침"
+   },
+   {
+    "day": 3,
+    "id": "sh3_2",
+    "name": "우캉루 거리",
+    "time": "09:30 - 11:00",
+    "lat": 31.2075,
+    "lng": 121.44,
+    "category": "sightseeing",
+    "description": "옛 프랑스 조계지의 플라타너스 길과 우캉맨션.",
+    "bookingUrl": "https://search.naver.com/search.naver?query=우캉루+거리"
+   },
+   {
+    "day": 3,
+    "id": "sh3_3",
+    "name": "윈난 과교미선 쌀국수 (점심)",
+    "time": "11:30 - 12:30",
+    "lat": 31.21,
+    "lng": 121.445,
+    "category": "restaurant",
+    "description": "맵지 않은 맑은 국물 쌀국수(과교미선).",
+    "bookingUrl": "https://search.naver.com/search.naver?query=훠궈+대신+운남+쌀국수",
+    "cuisine": "쌀국수"
+   },
+   {
+    "day": 3,
+    "id": "sh3_4",
+    "name": "상하이 푸둥 국제공항(PVG)",
+    "time": "15:00 - 17:00",
+    "lat": 31.1443,
+    "lng": 121.8083,
+    "category": "transit",
+    "description": "출국 수속.",
+    "bookingUrl": ""
+   },
+   {
+    "day": 3,
+    "id": "sh3_5",
+    "name": "인천국제공항(ICN)",
+    "time": "20:20 - 20:50",
+    "lat": 37.4602,
+    "lng": 126.4407,
+    "category": "transit",
+    "description": "귀국.",
+    "bookingUrl": "",
+    "move": {
+     "mode": "flight",
+     "minutes": 120,
+     "from": "상하이푸둥공항(PVG)",
+     "to": "인천국제공항(ICN)",
+     "note": ""
+    }
+   }
+  ]
+ },
+ "qingdao": {
+  "id": "qingdao",
+  "title": "맥주와 바다 칭다오 (칭다오 3일)",
+  "description": "유럽풍 붉은 지붕 구시가와 잔교, 칭다오 맥주박물관, 바닷가 해산물까지 가까워서 가볍게 다녀오는 2박 3일",
+  "destination": "칭다오",
+  "duration": 3,
+  "budget": "low",
+  "style": "relaxing",
+  "theme": {
+   "c1": "#0E7C66",
+   "c2": "#9BE15D",
+   "emoji": "🍺"
+  },
+  "region": "overseas",
+  "places": [
+   {
+    "day": 1,
+    "id": "qd1_1",
+    "name": "칭다오 자오둥 국제공항(TAO)",
+    "time": "10:30 - 11:30",
+    "lat": 36.3617,
+    "lng": 120.0881,
+    "category": "transit",
+    "description": "입국 후 지하철 8호선·택시로 시내 이동(약 1시간).",
+    "bookingUrl": "",
+    "move": {
+     "mode": "flight",
+     "minutes": 80,
+     "from": "인천국제공항(ICN)",
+     "to": "칭다오자오둥공항(TAO)",
+     "note": "09:00 출발 예상(현지 09:20 도착)"
+    }
+   },
+   {
+    "day": 1,
+    "id": "qd1_2",
+    "name": "해산물 만두 전문점 (점심)",
+    "time": "12:30 - 13:30",
+    "lat": 36.065,
+    "lng": 120.33,
+    "category": "restaurant",
+    "description": "칭다오 명물 삼치 만두(빠오위자오즈).",
+    "bookingUrl": "https://search.naver.com/search.naver?query=해산물+만두+전문점",
+    "cuisine": "해산물 만두"
+   },
+   {
+    "day": 1,
+    "id": "qd1_3",
+    "name": "잔교",
+    "time": "13:40 - 14:40",
+    "lat": 36.0617,
+    "lng": 120.3197,
+    "category": "sightseeing",
+    "description": "바다로 뻗은 400m 다리와 회란각. 칭다오 맥주 라벨 그림의 장소.",
+    "bookingUrl": "https://search.naver.com/search.naver?query=잔교"
+   },
+   {
+    "day": 1,
+    "id": "qd1_4",
+    "name": "천주교당 & 구시가",
+    "time": "15:00 - 16:00",
+    "lat": 36.0663,
+    "lng": 120.3159,
+    "category": "sightseeing",
+    "description": "독일 조계 시절 지은 고딕 성당과 붉은 지붕 골목.",
+    "bookingUrl": "https://search.naver.com/search.naver?query=천주교당+&+구시가"
+   },
+   {
+    "day": 1,
+    "id": "qd1_5",
+    "name": "신호산 공원 전망대",
+    "time": "16:30 - 17:30",
+    "lat": 36.0663,
+    "lng": 120.329,
+    "category": "sightseeing",
+    "description": "붉은 지붕 구시가와 바다가 한눈에 보이는 언덕.",
+    "bookingUrl": "https://search.naver.com/search.naver?query=신호산+공원+전망대"
+   },
+   {
+    "day": 1,
+    "id": "qd1_6",
+    "name": "피차이위안 꼬치 거리 (저녁)",
+    "time": "18:00 - 19:30",
+    "lat": 36.0705,
+    "lng": 120.325,
+    "category": "restaurant",
+    "description": "조개구이·꼬치와 생맥주를 파는 먹자 골목의 노점식 해산물.",
+    "bookingUrl": "https://search.naver.com/search.naver?query=피차이위안+꼬치+거리",
+    "cuisine": "해산물 구이"
+   },
+   {
+    "day": 1,
+    "id": "qd1_7",
+    "name": "중산로 인근 호텔 (숙소)",
+    "time": "20:30 - 21:00",
+    "lat": 36.068,
+    "lng": 120.321,
+    "category": "hotel",
+    "description": "구시가 중산로 근처 호텔.",
+    "bookingUrl": "https://search.naver.com/search.naver?query=중산로+인근+호텔"
+   },
+   {
+    "day": 2,
+    "id": "qd2_1",
+    "name": "유타오·더우장 아침 (아침)",
+    "time": "08:00 - 08:45",
+    "lat": 36.069,
+    "lng": 120.322,
+    "category": "restaurant",
+    "description": "꽈배기 유타오와 콩물로 현지식 아침.",
+    "bookingUrl": "https://search.naver.com/search.naver?query=유타오·더우장+아침",
+    "cuisine": "중국식 아침"
+   },
+   {
+    "day": 2,
+    "id": "qd2_2",
+    "name": "칭다오 맥주박물관",
+    "time": "09:30 - 11:30",
+    "lat": 36.073,
+    "lng": 120.3456,
+    "category": "sightseeing",
+    "description": "1903년 공장을 개조한 박물관. 갓 만든 원액 맥주 시음.",
+    "bookingUrl": "https://search.naver.com/search.naver?query=칭다오+맥주박물관"
+   },
+   {
+    "day": 2,
+    "id": "qd2_3",
+    "name": "덩저우루 맥주 거리 (점심)",
+    "time": "11:40 - 12:40",
+    "lat": 36.0735,
+    "lng": 120.346,
+    "category": "restaurant",
+    "description": "맥주 거리의 해산물 볶음과 생맥주.",
+    "bookingUrl": "https://search.naver.com/search.naver?query=덩저우루+맥주+거리",
+    "cuisine": "해산물 요리"
+   },
+   {
+    "day": 2,
+    "id": "qd2_4",
+    "name": "팔대관 풍경구",
+    "time": "13:30 - 15:00",
+    "lat": 36.053,
+    "lng": 120.357,
+    "category": "sightseeing",
+    "description": "각국 양식의 별장이 모인 숲길 산책.",
+    "bookingUrl": "https://search.naver.com/search.naver?query=팔대관+풍경구"
+   },
+   {
+    "day": 2,
+    "id": "qd2_5",
+    "name": "5·4광장 & 올림픽 요트센터",
+    "time": "15:30 - 16:30",
+    "lat": 36.0614,
+    "lng": 120.3844,
+    "category": "sightseeing",
+    "description": "붉은 횃불 조형물과 해변 산책로.",
+    "bookingUrl": "https://search.naver.com/search.naver?query=5·4광장+&+올림픽+요트센터"
+   },
+   {
+    "day": 2,
+    "id": "qd2_6",
+    "name": "완샹청(믹스몰)",
+    "time": "16:40 - 17:40",
+    "lat": 36.066,
+    "lng": 120.388,
+    "category": "shopping",
+    "description": "대형 쇼핑몰에서 간식·기념품 쇼핑.",
+    "bookingUrl": "https://search.naver.com/search.naver?query=완샹청(믹스몰)"
+   },
+   {
+    "day": 2,
+    "id": "qd2_7",
+    "name": "해산물 시장식 식당 (저녁)",
+    "time": "18:00 - 19:30",
+    "lat": 36.064,
+    "lng": 120.39,
+    "category": "restaurant",
+    "description": "골라 담은 해산물을 원하는 방식으로 조리해 주는 식당.",
+    "bookingUrl": "https://search.naver.com/search.naver?query=해산물+시장식+식당",
+    "cuisine": "해산물"
+   },
+   {
+    "day": 2,
+    "id": "qd2_8",
+    "name": "중산로 인근 호텔 (숙소)",
+    "time": "20:30 - 21:00",
+    "lat": 36.068,
+    "lng": 120.321,
+    "category": "hotel",
+    "description": "같은 숙소 연박.",
+    "bookingUrl": "https://search.naver.com/search.naver?query=중산로+인근+호텔"
+   },
+   {
+    "day": 3,
+    "id": "qd3_1",
+    "name": "호텔 근처 만두집 (아침)",
+    "time": "08:00 - 08:45",
+    "lat": 36.0675,
+    "lng": 120.323,
+    "category": "restaurant",
+    "description": "찐만두와 죽으로 아침.",
+    "bookingUrl": "https://search.naver.com/search.naver?query=호텔+근처+만두집",
+    "cuisine": "만두"
+   },
+   {
+    "day": 3,
+    "id": "qd3_2",
+    "name": "샤오위산 공원",
+    "time": "09:30 - 11:00",
+    "lat": 36.058,
+    "lng": 120.329,
+    "category": "sightseeing",
+    "description": "작은 언덕 위 정자에서 보는 바다와 구시가.",
+    "bookingUrl": "https://search.naver.com/search.naver?query=샤오위산+공원"
+   },
+   {
+    "day": 3,
+    "id": "qd3_3",
+    "name": "칭다오식 해물국수 (점심)",
+    "time": "11:30 - 12:30",
+    "lat": 36.065,
+    "lng": 120.325,
+    "category": "restaurant",
+    "description": "바지락 칼국수 같은 맑은 해물국수.",
+    "bookingUrl": "https://search.naver.com/search.naver?query=칭다오식+해물국수",
+    "cuisine": "해물국수"
+   },
+   {
+    "day": 3,
+    "id": "qd3_4",
+    "name": "칭다오 자오둥 국제공항(TAO)",
+    "time": "14:00 - 16:00",
+    "lat": 36.3617,
+    "lng": 120.0881,
+    "category": "transit",
+    "description": "출국 수속.",
+    "bookingUrl": ""
+   },
+   {
+    "day": 3,
+    "id": "qd3_5",
+    "name": "인천국제공항(ICN)",
+    "time": "18:40 - 19:10",
+    "lat": 37.4602,
+    "lng": 126.4407,
+    "category": "transit",
+    "description": "귀국.",
+    "bookingUrl": "",
+    "move": {
+     "mode": "flight",
+     "minutes": 90,
+     "from": "칭다오자오둥공항(TAO)",
+     "to": "인천국제공항(ICN)",
+     "note": ""
+    }
+   }
+  ]
+ },
+ "taipei": {
+  "id": "taipei",
+  "title": "야시장과 온천 타이베이 (타이베이 3일)",
+  "description": "타이베이101과 지우펀 홍등 골목, 스린 야시장, 베이터우 온천까지 알차게 도는 2박 3일",
+  "destination": "타이베이",
+  "duration": 3,
+  "budget": "medium",
+  "style": "active",
+  "theme": {
+   "c1": "#E84A5F",
+   "c2": "#FFB88C",
+   "emoji": "🧋"
+  },
+  "region": "overseas",
+  "places": [
+   {
+    "day": 1,
+    "id": "tp1_1",
+    "name": "타이베이 타오위안 국제공항(TPE)",
+    "time": "11:30 - 12:30",
+    "lat": 25.0777,
+    "lng": 121.2328,
+    "category": "transit",
+    "description": "입국 후 공항 MRT로 타이베이 메인역까지 약 40분.",
+    "bookingUrl": "",
+    "move": {
+     "mode": "flight",
+     "minutes": 150,
+     "from": "인천국제공항(ICN)",
+     "to": "타이베이타오위안공항(TPE)",
+     "note": "09:00 출발 예상(현지 10:30 도착)"
+    }
+   },
+   {
+    "day": 1,
+    "id": "tp1_2",
+    "name": "우육면 전문점 (점심)",
+    "time": "13:30 - 14:30",
+    "lat": 25.046,
+    "lng": 121.517,
+    "category": "restaurant",
+    "description": "진한 갈비탕 같은 홍샤오 우육면(맵지 않은 칭둔 추천).",
+    "bookingUrl": "https://search.naver.com/search.naver?query=우육면+전문점",
+    "cuisine": "우육면"
+   },
+   {
+    "day": 1,
+    "id": "tp1_3",
+    "name": "중정기념당",
+    "time": "14:40 - 15:40",
+    "lat": 25.0346,
+    "lng": 121.5218,
+    "category": "sightseeing",
+    "description": "거대한 흰 기념당과 정시 근위병 교대식.",
+    "bookingUrl": "https://search.naver.com/search.naver?query=중정기념당"
+   },
+   {
+    "day": 1,
+    "id": "tp1_4",
+    "name": "융캉제",
+    "time": "15:50 - 17:00",
+    "lat": 25.033,
+    "lng": 121.5297,
+    "category": "shopping",
+    "description": "망고빙수와 딤섬집이 모인 거리.",
+    "bookingUrl": "https://search.naver.com/search.naver?query=융캉제"
+   },
+   {
+    "day": 1,
+    "id": "tp1_5",
+    "name": "딘타이펑 본점 (저녁)",
+    "time": "17:10 - 18:10",
+    "lat": 25.0336,
+    "lng": 121.53,
+    "category": "restaurant",
+    "description": "샤오롱바오로 유명한 딘타이펑 융캉제 본점.",
+    "bookingUrl": "https://search.naver.com/search.naver?query=딘타이펑+본점",
+    "cuisine": "샤오롱바오"
+   },
+   {
+    "day": 1,
+    "id": "tp1_6",
+    "name": "타이베이 101 전망대",
+    "time": "19:00 - 20:30",
+    "lat": 25.034,
+    "lng": 121.5645,
+    "category": "sightseeing",
+    "description": "89층 전망대에서 보는 타이베이 야경.",
+    "bookingUrl": "https://search.naver.com/search.naver?query=타이베이+101+전망대"
+   },
+   {
+    "day": 1,
+    "id": "tp1_7",
+    "name": "시먼딩 인근 호텔 (숙소)",
+    "time": "21:00 - 21:30",
+    "lat": 25.043,
+    "lng": 121.507,
+    "category": "hotel",
+    "description": "MRT 시먼역 근처 호텔.",
+    "bookingUrl": "https://search.naver.com/search.naver?query=시먼딩+인근+호텔"
+   },
+   {
+    "day": 2,
+    "id": "tp2_1",
+    "name": "더우장 아침 가게 (아침)",
+    "time": "08:00 - 08:45",
+    "lat": 25.044,
+    "lng": 121.51,
+    "category": "restaurant",
+    "description": "따뜻한 콩물과 단빙(대만식 계란전병) 아침.",
+    "bookingUrl": "https://search.naver.com/search.naver?query=더우장+아침+가게",
+    "cuisine": "대만식 아침"
+   },
+   {
+    "day": 2,
+    "id": "tp2_2",
+    "name": "국립고궁박물원",
+    "time": "09:30 - 11:30",
+    "lat": 25.1024,
+    "lng": 121.5485,
+    "category": "sightseeing",
+    "description": "취옥백채 등 중국 황실 보물 컬렉션.",
+    "bookingUrl": "https://search.naver.com/search.naver?query=국립고궁박물원"
+   },
+   {
+    "day": 2,
+    "id": "tp2_3",
+    "name": "루러우판 전문점 (점심)",
+    "time": "12:00 - 13:00",
+    "lat": 25.089,
+    "lng": 121.524,
+    "category": "restaurant",
+    "description": "간장에 졸인 돼지고기 덮밥 루러우판.",
+    "bookingUrl": "https://search.naver.com/search.naver?query=루러우판+전문점",
+    "cuisine": "루러우판"
+   },
+   {
+    "day": 2,
+    "id": "tp2_4",
+    "name": "지우펀 옛 거리",
+    "time": "13:30 - 15:30",
+    "lat": 25.1092,
+    "lng": 121.8448,
+    "category": "sightseeing",
+    "description": "홍등이 걸린 산비탈 찻집 골목. 버스나 택시 투어로 이동.",
+    "bookingUrl": "https://search.naver.com/search.naver?query=지우펀+옛+거리",
+    "move": {
+     "mode": "bus",
+     "minutes": 70,
+     "note": "1062번 버스 또는 택시 투어"
+    }
+   },
+   {
+    "day": 2,
+    "id": "tp2_5",
+    "name": "아메이 찻집",
+    "time": "15:40 - 16:30",
+    "lat": 25.109,
+    "lng": 121.8445,
+    "category": "cafe",
+    "description": "계단 골목의 전통 찻집에서 우롱차.",
+    "bookingUrl": "https://search.naver.com/search.naver?query=아메이+찻집",
+    "cuisine": "찻집"
+   },
+   {
+    "day": 2,
+    "id": "tp2_6",
+    "name": "스린 야시장 (저녁)",
+    "time": "18:30 - 20:30",
+    "lat": 25.088,
+    "lng": 121.5241,
+    "category": "restaurant",
+    "description": "지파이(왕닭튀김)·굴전·버블티를 맛보는 야시장 저녁.",
+    "bookingUrl": "https://search.naver.com/search.naver?query=스린+야시장",
+    "cuisine": "야시장"
+   },
+   {
+    "day": 2,
+    "id": "tp2_7",
+    "name": "시먼딩 인근 호텔 (숙소)",
+    "time": "21:30 - 22:00",
+    "lat": 25.043,
+    "lng": 121.507,
+    "category": "hotel",
+    "description": "같은 숙소 연박.",
+    "bookingUrl": "https://search.naver.com/search.naver?query=시먼딩+인근+호텔"
+   },
+   {
+    "day": 3,
+    "id": "tp3_1",
+    "name": "호텔 근처 판퇀 가게 (아침)",
+    "time": "08:00 - 08:45",
+    "lat": 25.0425,
+    "lng": 121.508,
+    "category": "restaurant",
+    "description": "찹쌀 주먹밥 판퇀으로 아침.",
+    "bookingUrl": "https://search.naver.com/search.naver?query=호텔+근처+판퇀+가게",
+    "cuisine": "대만식 아침"
+   },
+   {
+    "day": 3,
+    "id": "tp3_2",
+    "name": "베이터우 온천 박물관 & 지열곡",
+    "time": "09:30 - 11:00",
+    "lat": 25.1368,
+    "lng": 121.5068,
+    "category": "sightseeing",
+    "description": "MRT로 가는 온천 마을. 김이 피어오르는 지열곡 산책.",
+    "bookingUrl": "https://search.naver.com/search.naver?query=베이터우+온천+박물관+&+지열곡"
+   },
+   {
+    "day": 3,
+    "id": "tp3_3",
+    "name": "망고빙수·딤섬 (점심)",
+    "time": "11:30 - 12:30",
+    "lat": 25.042,
+    "lng": 121.5075,
+    "category": "restaurant",
+    "description": "시먼딩에서 딤섬과 망고빙수.",
+    "bookingUrl": "https://search.naver.com/search.naver?query=망고빙수·딤섬",
+    "cuisine": "딤섬"
+   },
+   {
+    "day": 3,
+    "id": "tp3_4",
+    "name": "타이베이 타오위안 국제공항(TPE)",
+    "time": "15:00 - 17:00",
+    "lat": 25.0777,
+    "lng": 121.2328,
+    "category": "transit",
+    "description": "출국 수속. 펑리수 면세점 쇼핑.",
+    "bookingUrl": ""
+   },
+   {
+    "day": 3,
+    "id": "tp3_5",
+    "name": "인천국제공항(ICN)",
+    "time": "21:30 - 22:00",
+    "lat": 37.4602,
+    "lng": 126.4407,
+    "category": "transit",
+    "description": "귀국.",
+    "bookingUrl": "",
+    "move": {
+     "mode": "flight",
+     "minutes": 140,
+     "from": "타이베이타오위안공항(TPE)",
+     "to": "인천국제공항(ICN)",
+     "note": ""
+    }
+   }
+  ]
+ },
+ "kaohsiung": {
+  "id": "kaohsiung",
+  "title": "항구 도시 가오슝 (가오슝 3일)",
+  "description": "보얼 예술특구와 롄츠탄 용호탑, 치진섬 해변, 야시장까지 따뜻한 남쪽에서 쉬어 가는 2박 3일",
+  "destination": "가오슝",
+  "duration": 3,
+  "budget": "low",
+  "style": "relaxing",
+  "theme": {
+   "c1": "#F39C12",
+   "c2": "#FFE29F",
+   "emoji": "🌅"
+  },
+  "region": "overseas",
+  "places": [
+   {
+    "day": 1,
+    "id": "ks1_1",
+    "name": "가오슝 국제공항(KHH)",
+    "time": "11:30 - 12:30",
+    "lat": 22.5771,
+    "lng": 120.35,
+    "category": "transit",
+    "description": "입국 후 MRT 레드라인으로 시내까지 약 20분.",
+    "bookingUrl": "",
+    "move": {
+     "mode": "flight",
+     "minutes": 190,
+     "from": "인천국제공항(ICN)",
+     "to": "가오슝공항(KHH)",
+     "note": "09:00 출발 예상(현지 11:10 도착)"
+    }
+   },
+   {
+    "day": 1,
+    "id": "ks1_2",
+    "name": "해산물 볶음밥 식당 (점심)",
+    "time": "13:30 - 14:30",
+    "lat": 22.633,
+    "lng": 120.3,
+    "category": "restaurant",
+    "description": "새우볶음밥과 맑은 생선국.",
+    "bookingUrl": "https://search.naver.com/search.naver?query=해산물+볶음밥+식당",
+    "cuisine": "대만 요리"
+   },
+   {
+    "day": 1,
+    "id": "ks1_3",
+    "name": "보얼 예술특구",
+    "time": "14:40 - 16:30",
+    "lat": 22.62,
+    "lng": 120.2817,
+    "category": "sightseeing",
+    "description": "옛 항구 창고를 개조한 예술 거리와 대형 조형물.",
+    "bookingUrl": "https://search.naver.com/search.naver?query=보얼+예술특구"
+   },
+   {
+    "day": 1,
+    "id": "ks1_4",
+    "name": "아이허(사랑의 강) 산책",
+    "time": "16:40 - 17:40",
+    "lat": 22.625,
+    "lng": 120.286,
+    "category": "sightseeing",
+    "description": "강변 산책로와 해 질 녘 풍경.",
+    "bookingUrl": "https://search.naver.com/search.naver?query=아이허(사랑의+강)+산책"
+   },
+   {
+    "day": 1,
+    "id": "ks1_5",
+    "name": "류허 야시장 (저녁)",
+    "time": "18:00 - 19:30",
+    "lat": 22.6324,
+    "lng": 120.2995,
+    "category": "restaurant",
+    "description": "파파야 우유와 해산물 꼬치의 야시장 저녁.",
+    "bookingUrl": "https://search.naver.com/search.naver?query=류허+야시장",
+    "cuisine": "야시장"
+   },
+   {
+    "day": 1,
+    "id": "ks1_6",
+    "name": "미려도역 인근 호텔 (숙소)",
+    "time": "20:30 - 21:00",
+    "lat": 22.6315,
+    "lng": 120.302,
+    "category": "hotel",
+    "description": "두 MRT 노선이 만나는 미려도역 근처.",
+    "bookingUrl": "https://search.naver.com/search.naver?query=미려도역+인근+호텔"
+   },
+   {
+    "day": 2,
+    "id": "ks2_1",
+    "name": "대만식 아침 가게 (아침)",
+    "time": "08:00 - 08:45",
+    "lat": 22.632,
+    "lng": 120.301,
+    "category": "restaurant",
+    "description": "단빙과 더우장 아침.",
+    "bookingUrl": "https://search.naver.com/search.naver?query=대만식+아침+가게",
+    "cuisine": "대만식 아침"
+   },
+   {
+    "day": 2,
+    "id": "ks2_2",
+    "name": "미려도역 빛의 돔",
+    "time": "09:00 - 09:30",
+    "lat": 22.6315,
+    "lng": 120.302,
+    "category": "sightseeing",
+    "description": "세계에서 가장 아름다운 지하철역의 스테인드글라스 돔.",
+    "bookingUrl": "https://search.naver.com/search.naver?query=미려도역+빛의+돔"
+   },
+   {
+    "day": 2,
+    "id": "ks2_3",
+    "name": "롄츠탄 용호탑",
+    "time": "10:00 - 11:30",
+    "lat": 22.681,
+    "lng": 120.294,
+    "category": "sightseeing",
+    "description": "연못 위 용과 호랑이 입으로 들어가 나오는 탑.",
+    "bookingUrl": "https://search.naver.com/search.naver?query=롄츠탄+용호탑"
+   },
+   {
+    "day": 2,
+    "id": "ks2_4",
+    "name": "우육면 전문점 (점심)",
+    "time": "12:00 - 13:00",
+    "lat": 22.676,
+    "lng": 120.295,
+    "category": "restaurant",
+    "description": "맑은 국물 칭둔 우육면.",
+    "bookingUrl": "https://search.naver.com/search.naver?query=우육면+전문점",
+    "cuisine": "우육면"
+   },
+   {
+    "day": 2,
+    "id": "ks2_5",
+    "name": "치진섬 해변 & 등대",
+    "time": "14:00 - 16:30",
+    "lat": 22.6143,
+    "lng": 120.2669,
+    "category": "sightseeing",
+    "description": "페리로 5분, 자전거로 도는 해변 섬과 치허우 등대.",
+    "bookingUrl": "https://search.naver.com/search.naver?query=치진섬+해변+&+등대",
+    "move": {
+     "mode": "ferry",
+     "minutes": 10,
+     "note": "구산 페리 선착장 → 치진"
+    }
+   },
+   {
+    "day": 2,
+    "id": "ks2_6",
+    "name": "치진 해산물 거리 (저녁)",
+    "time": "16:30 - 17:30",
+    "lat": 22.617,
+    "lng": 120.267,
+    "category": "restaurant",
+    "description": "수조에서 고른 해산물을 바로 조리.",
+    "bookingUrl": "https://search.naver.com/search.naver?query=치진+해산물+거리",
+    "cuisine": "해산물"
+   },
+   {
+    "day": 2,
+    "id": "ks2_7",
+    "name": "가오슝 85 타워 전망",
+    "time": "19:00 - 20:00",
+    "lat": 22.6116,
+    "lng": 120.3,
+    "category": "sightseeing",
+    "description": "항구 야경.",
+    "bookingUrl": "https://search.naver.com/search.naver?query=가오슝+85+타워+전망"
+   },
+   {
+    "day": 2,
+    "id": "ks2_8",
+    "name": "미려도역 인근 호텔 (숙소)",
+    "time": "20:30 - 21:00",
+    "lat": 22.6315,
+    "lng": 120.302,
+    "category": "hotel",
+    "description": "같은 숙소 연박.",
+    "bookingUrl": "https://search.naver.com/search.naver?query=미려도역+인근+호텔"
+   },
+   {
+    "day": 3,
+    "id": "ks3_1",
+    "name": "호텔 근처 죽집 (아침)",
+    "time": "08:00 - 08:45",
+    "lat": 22.631,
+    "lng": 120.303,
+    "category": "restaurant",
+    "description": "고구마죽과 반찬으로 아침.",
+    "bookingUrl": "https://search.naver.com/search.naver?query=호텔+근처+죽집",
+    "cuisine": "죽"
+   },
+   {
+    "day": 3,
+    "id": "ks3_2",
+    "name": "가오슝 시립미술관 공원",
+    "time": "09:30 - 11:00",
+    "lat": 22.656,
+    "lng": 120.287,
+    "category": "sightseeing",
+    "description": "넓은 공원 속 미술관 산책.",
+    "bookingUrl": "https://search.naver.com/search.naver?query=가오슝+시립미술관+공원"
+   },
+   {
+    "day": 3,
+    "id": "ks3_3",
+    "name": "망고빙수 & 딤섬 (점심)",
+    "time": "11:30 - 12:30",
+    "lat": 22.628,
+    "lng": 120.301,
+    "category": "restaurant",
+    "description": "딤섬과 망고빙수로 마지막 식사.",
+    "bookingUrl": "https://search.naver.com/search.naver?query=망고빙수+&+딤섬",
+    "cuisine": "딤섬"
+   },
+   {
+    "day": 3,
+    "id": "ks3_4",
+    "name": "가오슝 국제공항(KHH)",
+    "time": "15:00 - 17:00",
+    "lat": 22.5771,
+    "lng": 120.35,
+    "category": "transit",
+    "description": "출국 수속.",
+    "bookingUrl": ""
+   },
+   {
+    "day": 3,
+    "id": "ks3_5",
+    "name": "인천국제공항(ICN)",
+    "time": "21:30 - 22:00",
+    "lat": 37.4602,
+    "lng": 126.4407,
+    "category": "transit",
+    "description": "귀국.",
+    "bookingUrl": "",
+    "move": {
+     "mode": "flight",
+     "minutes": 165,
+     "from": "가오슝공항(KHH)",
+     "to": "인천국제공항(ICN)",
+     "note": ""
+    }
+   }
+  ]
+ }
+});
 window.PREDEFINED_TEMPLATES = PREDEFINED_TEMPLATES;
 window.generateItinerary = generateItinerary;
