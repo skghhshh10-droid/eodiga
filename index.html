@@ -117,7 +117,7 @@
 
             <div class="form-group">
               <label for="input-origin">출발 도시 <small class="label-hint">(비행기·기차 구간 계산용 · 다음에도 기억해요)</small></label>
-              <input type="text" id="input-origin" placeholder="서울" autocomplete="off" maxlength="30">
+              <input type="text" id="input-origin" placeholder="광주" autocomplete="off" maxlength="30">
             </div>
 
             <div class="form-row">
@@ -412,6 +412,11 @@
               불러오지 못하면 자동으로 다른 지도로 바뀌어요.
             </p>
             <div class="form-group">
+              <label for="setting-origin">사는 곳 (기본 출발 도시)</label>
+              <input type="text" id="setting-origin" placeholder="광주" autocomplete="off" maxlength="30">
+              <small class="settings-hint">홈 지도의 출발 핀, 기차·버스 출발역, 항공 출발 공항에 쓰여요. 전남광주특별시는 '광주'로 적으면 돼요.</small>
+            </div>
+            <div class="form-group">
               <label for="setting-naver-key">네이버 지도 Client ID</label>
               <input type="text" id="setting-naver-key" placeholder="네이버 클라우드 Maps → Application → 인증 정보" autocomplete="off" spellcheck="false">
               <small class="settings-hint">비우면 국내 일정도 OpenFreeMap으로 표시돼요. Client Secret은 넣지 마세요.</small>
@@ -555,7 +560,7 @@
         <p class="budget-help" id="tpl-setup-desc"></p>
         <div class="form-group">
           <label for="tpl-origin">출발 도시</label>
-          <input type="text" id="tpl-origin" placeholder="서울" autocomplete="off" maxlength="30">
+          <input type="text" id="tpl-origin" placeholder="광주" autocomplete="off" maxlength="30">
         </div>
         <div class="tpl-grid">
           <div class="form-group">

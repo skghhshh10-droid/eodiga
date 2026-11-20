@@ -480,6 +480,12 @@ function withUndo(message, mutate) {
 // --- Local Storage Management ---
 function loadLocalStorage() {
   try {
+    // 사는 곳이 광주로 바뀐 뒤 첫 실행: 예전 기본값(서울)이 남아 있으면 광주로
+    if (!localStorage.getItem("routy_home_v1")) {
+      const o = localStorage.getItem("routy_origin");
+      if (!o || o === "서울") localStorage.setItem("routy_origin", DEFAULT_ORIGIN);
+      localStorage.setItem("routy_home_v1", "1");
+    }
     const savedTrips = localStorage.getItem("routy_saved_trips");
     if (savedTrips) {
       state.savedTrips = JSON.parse(savedTrips);
@@ -644,6 +650,9 @@ function setupSettings() {
     const placesKey = document.getElementById("setting-places-key").value.trim();
     const placesSort = document.getElementById("setting-places-sort").value;
     window.RoutyAI.saveSettings({ naverKey, kakaoKey, placesKey, placesSort });
+    const home = document.getElementById("setting-origin").value.trim();
+    try { localStorage.setItem("routy_origin", home || DEFAULT_ORIGIN); } catch (e) {}
+    renderTemplates();
     topCache.clear();
     failedEngines.delete("naver");
     failedEngines.delete("kakao");
@@ -741,6 +750,7 @@ function renderSettingsTab() {
   const ver = document.getElementById("app-version");
   if (ver) ver.textContent = APP_VERSION;
   document.getElementById("setting-places-sort").value = s.placesSort || "rating";
+  try { document.getElementById("setting-origin").value = localStorage.getItem("routy_origin") || DEFAULT_ORIGIN; } catch (e) {}
   document.getElementById("places-limit").textContent = window.RoutyAI.PLACES_DAILY_LIMIT;
   document.getElementById("places-usage").textContent = s.placesKey ? `(오늘 ${window.RoutyAI.placesUsage().n}회 사용)` : "";
   const statusEl = document.getElementById("settings-status");
@@ -780,9 +790,15 @@ const HOME_MAP = {
   W: 600, H: 332, lng0: 122, lat1: 40.2, kx: 30.0, ky: 36.94,
   land: {"CN": "M-4 336L-4 -4L81 -4L72 4L71 7L68 10L63 13L53 14L50 12L47 15L40 16L37 19L31 19L29 21L25 22L10 31L4 39L-4 44L-4 6L4 -4L-4 -4L-4 101L-1 102L2 99L3 99L5 101L10 103L18 102L20 103L17 106L18 112L13 116L16 118L16 120L10 124L7 124L5 120L-2 120L-4 121L-4 336Z", "KP": "M191 58L185 68L181 70L159 70L153 71L140 84L140 89L139 89L131 86L126 88L124 91L121 86L118 86L113 82L111 83L107 88L102 92L101 91L99 87L90 84L97 79L96 78L90 78L87 77L83 78L81 77L86 73L86 69L89 64L92 61L99 57L107 56L103 54L99 54L95 52L95 49L102 34L101 25L93 23L83 16L82 17L82 20L79 22L77 15L70 11L72 4L81 -4L201 -4L195 3L189 6L183 6L179 8L176 11L167 15L166 19L166 27L166 30L164 30L161 33L162 37L174 41L179 48L187 54L191 58Z", "KR": "M139 89L140 89L140 84L153 71L159 70L181 70L185 68L191 58L199 75L212 93L220 108L223 116L224 128L222 143L222 153L224 155L227 153L223 174L216 185L209 188L199 188L195 188L193 192L193 197L183 195L181 191L176 193L171 194L169 196L172 200L172 202L169 204L166 198L162 199L162 202L164 206L160 212L155 209L158 205L157 201L151 207L147 213L145 212L143 210L138 214L137 217L136 217L134 211L128 204L129 202L136 203L134 201L138 199L133 199L129 186L131 184L135 174L138 171L135 170L135 168L141 164L143 160L139 158L141 155L136 149L136 138L135 129L132 131L125 130L125 127L126 123L135 118L137 118L141 120L144 120L146 125L149 120L146 119L142 111L144 107L140 102L140 98L137 92L139 89ZM202 200L199 202L196 199L195 197L198 195L200 192L202 192L202 200ZM182 199L182 203L179 203L178 201L176 202L175 199L175 197L177 195L181 197L182 199ZM127 215L125 216L123 214L127 209L127 208L130 209L131 211L130 213L127 215ZM136 91L135 96L132 94L131 90L132 88L136 91ZM143 216L143 218L141 218L139 216L140 215L141 214L143 216ZM133 137L132 139L130 138L130 133L132 134L133 137ZM125 202L123 203L122 198L120 197L122 195L125 198L125 202ZM268 101L266 102L264 101L265 98L267 98L268 99L268 101ZM130 258L127 258L125 256L126 252L130 249L141 246L147 247L148 250L146 253L137 257L130 258Z", "JP": "M341 148L340 149L337 149L336 147L336 144L339 143L341 146L341 148ZM490 88L487 88L488 87L490 82L490 82L487 81L488 78L489 75L495 70L494 78L497 79L495 85L490 88ZM388 218L385 222L382 221L380 220L380 218L385 212L390 209L387 214L388 218ZM242 294L240 296L239 294L241 292L239 290L240 284L245 283L246 290L242 294ZM218 224L216 226L216 224L216 217L220 219L218 224ZM222 216L221 218L218 215L220 210L220 207L224 204L224 209L221 214L222 216ZM200 274L201 275L205 275L207 279L205 279L202 281L200 280L200 274ZM251 287L249 287L247 286L251 283L254 284L251 287ZM371 211L368 213L366 211L365 210L370 209L371 210L371 211ZM524 202L523 204L521 202L521 200L523 200L524 202ZM212 272L212 272L210 268L213 261L214 263L215 266L213 269L212 272ZM225 258L221 259L224 254L227 253L225 258ZM234 238L232 240L230 239L231 235L232 234L233 235L234 238ZM317 225L316 226L314 226L316 223L317 225ZM308 231L309 232L313 232L311 235L306 234L306 231L308 231ZM232 316L231 316L231 313L234 311L234 312L232 316ZM275 244L281 245L287 242L291 244L291 247L286 256L297 257L295 262L299 264L297 267L300 269L290 286L284 307L284 315L280 325L272 324L271 326L273 330L267 336L262 336L264 330L261 319L263 318L264 315L263 314L260 313L256 323L257 327L259 330L258 333L246 329L244 325L249 323L250 318L246 311L246 305L246 300L250 298L252 295L259 280L255 279L257 276L256 272L253 268L251 263L247 259L244 262L245 266L245 271L250 271L250 277L247 278L245 275L242 274L233 282L235 276L231 271L230 264L233 267L235 270L237 271L240 271L237 265L227 257L228 253L230 253L235 254L235 250L242 247L245 244L248 244L251 243L255 235L261 232L269 234L272 241L275 244ZM371 220L375 221L379 221L379 227L381 232L380 235L382 236L371 244L367 250L365 257L359 249L356 248L349 247L339 253L334 263L330 267L329 272L326 275L324 275L319 275L321 270L315 269L315 266L313 264L315 257L315 255L312 254L312 250L301 253L319 241L324 229L328 226L330 226L334 232L336 232L341 230L344 230L347 228L349 224L348 220L351 220L358 216L362 216L371 220ZM593 -4L600 15L599 28L597 40L590 45L586 53L584 66L573 69L569 76L568 83L571 101L570 114L569 118L564 124L562 128L559 137L557 147L559 153L566 165L559 168L554 173L552 178L553 182L551 185L542 191L538 196L534 194L535 192L535 181L537 179L543 170L540 167L535 168L534 170L533 174L530 177L530 180L532 183L530 187L529 187L527 183L524 181L518 182L514 186L513 198L507 206L505 206L503 203L504 193L507 191L505 189L502 188L497 189L488 202L486 207L479 205L466 205L452 207L452 206L459 203L458 200L451 201L449 198L448 202L447 203L446 202L446 193L447 191L444 190L441 193L436 204L438 207L446 213L446 217L430 222L418 245L411 248L404 246L395 233L394 229L394 222L393 218L398 215L402 209L403 206L401 205L391 206L382 201L374 201L366 203L359 210L356 211L350 211L343 213L334 218L331 217L320 220L313 216L309 217L307 221L304 235L292 227L284 228L277 231L272 228L268 230L267 218L270 215L281 214L288 206L296 202L308 191L319 181L321 177L328 173L338 172L341 175L349 173L359 173L366 172L374 169L386 168L395 165L398 165L397 170L400 173L410 173L417 170L423 164L421 160L420 156L422 151L425 147L431 142L441 128L442 120L442 111L445 104L460 99L460 102L455 108L448 112L447 114L450 117L450 124L454 127L459 127L465 120L490 110L499 101L507 87L517 81L522 76L526 63L534 49L537 36L541 29L542 17L540 13L538 12L534 12L532 10L533 9L535 9L537 7L540 -4Z"}
 };
-const HOME_MAP_ORIGIN = { name: "서울", lat: 37.5665, lng: 126.978 };
+// 사는 곳(출발 도시) 기본값. 2026.7 출범한 전남광주특별시(약칭 광주특별시)
+const DEFAULT_ORIGIN = "광주";
+function homeOrigin() {
+  const name = (() => { try { return localStorage.getItem("routy_origin"); } catch (e) { return ""; } })() || DEFAULT_ORIGIN;
+  const key = Object.keys(CITY_COORDS).find(k => name.includes(k)) || DEFAULT_ORIGIN;
+  return { name: key, lat: CITY_COORDS[key][0], lng: CITY_COORDS[key][1] };
+}
 // 핀이 겹치는 곳은 말풍선만 살짝 옮긴다 (지도 단위)
-const HOME_PIN_NUDGE = { gyeongju: [62, -34], busan: [16, 44] };
+const HOME_PIN_NUDGE = { gyeongju: [62, -34], busan: [16, 44], couple: [-34, 36] };
 let homeMapPick = null;
 
 function homeMapXY(lat, lng) {
@@ -831,6 +847,7 @@ function renderHomeMap(list, matchKeys) {
     const [dx, dy] = HOME_PIN_NUDGE[t.id] || [0, 0];
     return { t, x, y, bx: x + dx, by: y + dy, th: destTheme(t.destination), on: !matchKeys || matchKeys.has(t.id) };
   }).filter(Boolean);
+  const HOME_MAP_ORIGIN = homeOrigin();
   const [ox, oy] = homeMapXY(HOME_MAP_ORIGIN.lat, HOME_MAP_ORIGIN.lng);
   const arc = (x, y) => {
     const mx = (ox + x) / 2, my = (oy + y) / 2 - Math.min(70, Math.hypot(x - ox, y - oy) * 0.35);
@@ -1191,7 +1208,7 @@ async function runGeneration(input) {
   const base = {
     id: `trip-${Date.now()}`,
     destination: input.destination,
-    origin: input.origin || "서울",
+    origin: input.origin || DEFAULT_ORIGIN,
     days: input.days,
     budget: input.budget,
     budgetPlan: input.budgetPlan,
@@ -2322,7 +2339,7 @@ function formatMinutes(m) {
 
 
 
-const APP_VERSION = "v45";
+const APP_VERSION = "v46";
 
 // --- 목적지별 표지 색·그림 (사진 대신 저작권 걱정 없는 색과 이모지) ---
 const DEST_THEMES = [
@@ -2602,7 +2619,7 @@ function needsFlight(trip) {
 }
 
 function originCity(trip) {
-  return (trip && trip.origin) || (() => { try { return localStorage.getItem("routy_origin"); } catch (e) { return ""; } })() || "서울";
+  return (trip && trip.origin) || (() => { try { return localStorage.getItem("routy_origin"); } catch (e) { return ""; } })() || DEFAULT_ORIGIN;
 }
 
 // 국내 내륙: 출발 도시 ↔ 목적지 기차·버스 예매 블록 (대중교통·알아서·택시일 때)
@@ -2896,7 +2913,8 @@ const CITY_COORDS = {
   "고양": [37.6584, 126.832], "부천": [37.5035, 126.766], "안양": [37.3943, 126.9568], "화성": [37.1995, 126.8312], "평택": [36.9921, 127.1129],
   "부산": [35.1796, 129.0756], "대구": [35.8714, 128.6014], "대전": [36.3504, 127.3845], "광주": [35.1595, 126.8526], "울산": [35.5384, 129.3114],
   "세종": [36.48, 127.289], "청주": [36.6424, 127.489], "천안": [36.8151, 127.1139], "전주": [35.8242, 127.148], "창원": [35.2281, 128.6811],
-  "포항": [36.019, 129.3435], "김해": [35.2285, 128.8894], "춘천": [37.8813, 127.7298], "원주": [37.3422, 127.9202], "강릉": [37.7519, 128.8761]
+  "포항": [36.019, 129.3435], "김해": [35.2285, 128.8894], "춘천": [37.8813, 127.7298], "원주": [37.3422, 127.9202], "강릉": [37.7519, 128.8761],
+  "목포": [34.8118, 126.3922], "순천": [34.9507, 127.4872], "여수": [34.7604, 127.6622], "나주": [35.016, 126.7108], "무안": [34.9904, 126.4817], "광양": [34.9407, 127.6959], "제주": [33.4996, 126.5312]
 };
 
 async function originCoords(trip) {
@@ -3217,7 +3235,7 @@ function ticketHtml(o) {
 const expandedFlights = new Set();
 const AIRPORT_CODES = {
   "인천": "ICN", "김포": "GMP", "김해": "PUS", "부산": "PUS", "제주": "CJU", "대구": "TAE", "청주": "CJJ",
-  "광주": "KWJ", "무안": "MWX", "여수": "RSU", "양양": "YNY", "울산": "USN", "포항": "KPO", "사천": "HIN", "군산": "KUV", "원주": "WJU"
+  "광주": "KWJ", "목포": "KWJ", "순천": "RSU", "여수": "RSU", "무안": "MWX", "여수": "RSU", "양양": "YNY", "울산": "USN", "포항": "KPO", "사천": "HIN", "군산": "KUV", "원주": "WJU"
 };
 const KOREA_CODES = new Set(Object.values(AIRPORT_CODES));
 // 해외 공항·도시 이름 → 코드 (템플릿·예전 일정처럼 코드가 없을 때 추정용)
@@ -3233,6 +3251,7 @@ const WORLD_AIRPORTS = [
   [/로마/, "FCO"], [/바르셀로나/, "BCN"], [/프랑크푸르트/, "FRA"], [/뉴욕|JFK/, "JFK"], [/로스앤젤레스|LA\b/, "LAX"],
   [/샌프란시스코/, "SFO"], [/밴쿠버/, "YVR"], [/두바이/, "DXB"], [/이스탄불/, "IST"]
 ];
+const DOMESTIC_ONLY_AIRPORTS = new Set(["KWJ", "RSU", "USN", "HIN", "KPO", "WJU", "KUV"]);
 const ORIGIN_CODES = { "서울": "ICN", "인천": "ICN", "김포": "GMP", "부산": "PUS", "대구": "TAE", "청주": "CJJ", "광주": "KWJ", "제주": "CJU", "무안": "MWX", "양양": "YNY" };
 
 function isAirportPlace(p) {
@@ -3248,19 +3267,21 @@ function guessAirport(text) {
 }
 
 function originAirport(trip, toCode) {
-  const o = trip.origin || (() => { try { return localStorage.getItem("routy_origin"); } catch (e) { return ""; } })() || "서울";
+  const o = trip.origin || (() => { try { return localStorage.getItem("routy_origin"); } catch (e) { return ""; } })() || DEFAULT_ORIGIN;
   const key = Object.keys(ORIGIN_CODES).find(k => o.includes(k));
   let code = key ? ORIGIN_CODES[key] : (airportCode(o) || "ICN");
   // 국내선(예: 서울→제주)은 김포 출발
   if (code === "ICN" && KOREA_CODES.has(toCode)) code = "GMP";
+  // 광주공항(KWJ) 등 국내선 전용 공항에서는 해외로 바로 못 가므로 인천 출발
+  if (DOMESTIC_ONLY_AIRPORTS.has(code) && toCode && !KOREA_CODES.has(toCode)) code = "ICN";
   return code;
 }
 
 function rememberOrigin(v) {
   try {
     if (v) localStorage.setItem("routy_origin", v);
-    return v || localStorage.getItem("routy_origin") || "서울";
-  } catch (e) { return v || "서울"; }
+    return v || localStorage.getItem("routy_origin") || DEFAULT_ORIGIN;
+  } catch (e) { return v || DEFAULT_ORIGIN; }
 }
 
 function airportCode(text) {
