@@ -19,7 +19,7 @@ Google Gemini로 **실제 장소** 기반 여행 일정을 만들고, 지도·�
 
 - 로컬: `python3 -m http.server 8000` 후 `http://localhost:8000`
 - 휴대폰에서 쓰기: GitHub 저장소 **Settings → Pages → Deploy from branch (main / root)** 로 켜면
-  `https://<아이디>.github.io/real-routy/` 에서 열립니다. 브라우저 메뉴의 **홈 화면에 추가**로 앱처럼 설치되고,
+  `https://<아이디>.github.io/eodiga/` 에서 열립니다. 브라우저 메뉴의 **홈 화면에 추가**로 앱처럼 설치되고,
   한 번 연 일정은 오프라인에서도 볼 수 있습니다 (service worker).
 
 > API 키는 브라우저에만 저장되지만, 공개 페이지라도 키는 각자 입력하는 구조라 저장소에 키가 올라가지 않습니다.
