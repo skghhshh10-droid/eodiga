@@ -244,6 +244,8 @@ document.addEventListener("DOMContentLoaded", () => {
 
   // Setup Senior Mode toggles & overrides
   setupSeniorMode();
+  setupSettingsExtras();
+  renderHomeGreet();
 
   // Setup template selection cards
   renderTemplates();
@@ -486,6 +488,7 @@ function switchTab(tabName) {
     renderSavedTrips();
   } else if (tabName === 'planner') {
     updateAiNotice();
+    renderPlannerGreet();
   } else if (tabName === 'explore') {
     const searchInput = document.getElementById("explore-search-input");
     if (searchInput) {
@@ -770,6 +773,7 @@ function setupSettings() {
     save();
     statusEl.textContent = keyInput.value.trim() ? "✅ 저장했습니다." : "API 키를 지웠습니다. 샘플 일정만 생성됩니다.";
     statusEl.className = "settings-status ok";
+    renderSettingsExtras();
   });
 
   document.getElementById("btn-test-settings").addEventListener("click", async () => {
@@ -845,6 +849,7 @@ function setupSettings() {
 }
 
 function renderSettingsTab() {
+  renderSettingsExtras();
   const s = window.RoutyAI.getSettings();
   document.getElementById("setting-api-key").value = s.apiKey;
   document.getElementById("setting-model").value = s.model;
@@ -868,6 +873,32 @@ function renderSettingsTab() {
   }
 }
 
+function renderSettingsExtras() {
+  const ai = document.getElementById("ai-state");
+  if (ai) {
+    const ok = window.RoutyAI.hasApiKey();
+    ai.className = "ai-state " + (ok ? "ok" : "no");
+    ai.textContent = ok ? "연결됨" : "키 필요";
+  }
+  const th = document.getElementById("set-theme-state");
+  if (th) th.textContent = document.documentElement.getAttribute("data-theme") === "dark" ? "켜짐" : "꺼짐";
+  const sn = document.getElementById("set-senior-state");
+  if (sn) sn.textContent = ["보통", "크게", "더 크게", "아주 크게", "최대"][state.fontSizeStep || 0] || "보통";
+}
+
+function setupSettingsExtras() {
+  const t = document.getElementById("btn-set-theme");
+  if (t) t.addEventListener("click", () => { document.getElementById("btn-quick-theme").click(); renderSettingsExtras(); });
+  const sn = document.getElementById("btn-set-senior");
+  if (sn) sn.addEventListener("click", () => { document.getElementById("btn-header-senior").click(); renderSettingsExtras(); });
+  const origin = document.getElementById("setting-origin");
+  if (origin) origin.addEventListener("change", () => {
+    try { localStorage.setItem("routy_origin", origin.value.trim() || DEFAULT_ORIGIN); } catch (e) {}
+    renderTemplates();
+    showToast(`사는 곳을 '${origin.value.trim() || DEFAULT_ORIGIN}'(으)로 저장했어요.`);
+  });
+}
+
 function updateAiNotice() {
   const hasKey = window.RoutyAI.hasApiKey();
   const notice = document.getElementById("ai-key-notice");
@@ -876,8 +907,43 @@ function updateAiNotice() {
   if (label) label.textContent = hasKey ? "AI 일정 생성하기" : "샘플 일정 만들기";
 }
 
+// --- 마스코트 '구름이' 인사 ---
+const MASCOT_TIPS = [
+  ["지도에서 핀을 콕 누르면 그곳 코스가 나와요!", "happy"],
+  ["식당은 제가 근처 별점 1위로 골라 둘게요 🍜", "wink"],
+  ["매운 거 못 드시면 AI 플래너 3단계에서 알려 주세요!", "happy"],
+  ["표를 예매했으면 시간만 넣어 주세요. 일정을 맞춰 드려요 🎫", "wink"],
+  ["매달 1일엔 새 추천 코스가 도착해요 ✨", "wow"],
+  ["일정 카드의 '길안내'를 누르면 네이버 지도로 바로 가요 🧭", "happy"]
+];
+let mascotTipIdx = -1;
+function greetingText() {
+  const h = new Date().getHours();
+  if (h >= 5 && h < 11) return ["좋은 아침이에요! 오늘은 어디로 떠나 볼까요?", "happy"];
+  if (h >= 11 && h < 17) return ["어디가 볼까요? 지도에서 콕 찍어 봐요!", "wink"];
+  if (h >= 17 && h < 23) return ["저녁이에요~ 다음 여행 계획 세워 볼까요?", "happy"];
+  return ["늦은 밤엔 여행 상상이 최고죠 ✨", "sleep"];
+}
+function renderHomeGreet() {
+  const box = document.getElementById("home-greet");
+  if (!box) return;
+  const [text, mood] = mascotTipIdx < 0 ? greetingText() : MASCOT_TIPS[mascotTipIdx];
+  box.innerHTML = window.mascotSay(esc(text), mood, 64);
+  const btn = box.querySelector(".mascot-btn");
+  btn.addEventListener("click", () => {
+    mascotTipIdx = (mascotTipIdx + 1) % MASCOT_TIPS.length;
+    renderHomeGreet();
+    const m = document.querySelector("#home-greet .mascot");
+    if (m) { m.classList.remove("hop"); void m.getBoundingClientRect(); m.classList.add("hop"); }
+  });
+}
+function renderPlannerGreet() {
+  const box = document.getElementById("planner-greet");
+  if (box && !box.innerHTML) box.innerHTML = window.mascotSay("어디로 갈지 알려 주면 제가 일정을 짜 볼게요!", "wink", 56);
+}
+
 // --- Explore Tab: Templates Render ---
-function renderExploreTab() {}
+function renderExploreTab() { renderHomeGreet(); }
 
 function setupExploreSearch() {
   const searchInput = document.getElementById("explore-search-input");
@@ -1515,6 +1581,8 @@ function setupPlannerForm() {
 // 입력값으로 일정 생성 (성공 시 trip, 실패/취소 시 null)
 async function runGeneration(input) {
   const loadingOverlay = document.getElementById("planner-loading-overlay");
+  const lm = document.getElementById("loading-mascot");
+  if (lm && !lm.innerHTML) lm.innerHTML = window.mascotSvg("think", 120);
   const statusText = document.getElementById("loading-status-text");
   const elapsedEl = document.getElementById("loading-elapsed");
   const cancelBtn = document.getElementById("btn-cancel-generate");
@@ -2359,7 +2427,7 @@ function renderTripMeta() {
     ${t.summary ? `<p class="trip-summary">${esc(t.summary)}</p>` : ""}
     ${!isActiveTripSaved() ? `
       <div class="draft-banner compact">
-        <span>${t.source === "shared" ? "공유받은 일정" : t.source === "template" ? "추천 템플릿" : "저장 전 초안"}이에요. 저장하면 내 일정에 추가돼요.</span>
+        <span>📝 ${t.source === "shared" ? "공유받은 일정" : t.source === "template" ? "추천 코스" : "저장 전 초안"}이에요. 마음에 들면 <b>저장</b>해서 내 여행에 담아요.</span>
         <div class="draft-actions">
           ${t.genInput && window.RoutyAI.hasApiKey() ? `<button type="button" class="chip-btn" id="btn-regenerate">${window.icon("undo", 16)}다시 만들기</button>` : ""}
           <button type="button" class="chip-btn chip-primary" id="btn-draft-save">${window.icon("check", 16)}저장</button>
@@ -2694,7 +2762,7 @@ function formatMinutes(m) {
 
 
 
-const APP_VERSION = "v53";
+const APP_VERSION = "v54";
 
 // --- 목적지별 표지 색·그림 (사진 대신 저작권 걱정 없는 색과 이모지) ---
 const DEST_THEMES = [
@@ -5888,10 +5956,14 @@ function renderSavedTrips() {
 
   if (state.savedTrips.length === 0) {
     container.innerHTML = `
-      <div class="empty-logs" style="padding: 40px 10px;">
-        <span style="display:block; margin-bottom:12px; color: var(--text-muted);">${window.icon("calendar", 36)}</span>
-        <p>저장된 여행 일정이 없습니다.</p>
-        <p style="font-size:11px; margin-top:4px;">AI 플래너로 첫 여행 계획을 세워보세요.</p>
+      <div class="empty-cute">
+        ${window.mascotSvg("sleep", 120)}
+        <p class="empty-title">아직 담아 둔 여행이 없어요</p>
+        <p class="empty-sub">홈에서 추천 코스를 고르거나, AI 플래너로 첫 여행을 만들어 봐요.</p>
+        <div class="empty-actions">
+          <button type="button" class="btn btn-primary" onclick="switchTab('planner')">✨ AI로 만들기</button>
+          <button type="button" class="btn btn-secondary" onclick="switchTab('explore')">🗺 추천 보기</button>
+        </div>
       </div>
     `;
     return;

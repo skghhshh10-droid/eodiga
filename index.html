@@ -14,7 +14,7 @@
   <!-- Google Fonts -->
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Outfit:wght@400;500;600;700;800&family=Noto+Sans+KR:wght@300;400;500;700&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Outfit:wght@400;500;600;700;800&family=Noto+Sans+KR:wght@300;400;500;700&family=Jua&display=swap" rel="stylesheet">
   
   <!-- Leaflet Map CSS -->
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin=""/>
@@ -25,6 +25,7 @@
   <!-- App Custom Styles -->
   <link rel="stylesheet" href="styles.css">
   <link rel="stylesheet" href="layout.css">
+  <link rel="stylesheet" href="cute.css">
 </head>
 <body>
 
@@ -37,9 +38,9 @@
         <span class="logo-text">어디가</span>
       </div>
       <nav class="desktop-nav">
-        <button class="desktop-nav-item active" data-tab="explore"><i data-icon="compass"></i><span>추천 탐색</span></button>
+        <button class="desktop-nav-item active" data-tab="explore"><i data-icon="compass"></i><span>홈</span></button>
         <button class="desktop-nav-item" data-tab="planner"><i data-icon="sparkles"></i><span>AI 플래너</span></button>
-        <button class="desktop-nav-item" data-tab="trips"><i data-icon="calendar"></i><span>내 일정</span></button>
+        <button class="desktop-nav-item" data-tab="trips"><i data-icon="calendar"></i><span>내 여행</span></button>
         <button class="desktop-nav-item" data-tab="profile"><i data-icon="sliders"></i><span>설정</span></button>
       </nav>
       <div class="sidebar-trips" id="sidebar-trips"></div>
@@ -69,7 +70,7 @@
         
         <div class="screen-content scrollable">
           <div class="search-section">
-            <h1>어디로 떠나시나요?</h1>
+            <div id="home-greet" class="home-greet"></div>
             <div class="search-pill-box">
               <span class="search-icon"><i data-icon="search" data-size="18"></i></span>
               <input type="text" id="explore-search-input" placeholder="여행지나 키워드를 입력하세요" autocomplete="off">
@@ -93,11 +94,12 @@
       <!-- SCREEN: Planner Form & Loading -->
       <section id="screen-planner" class="app-screen">
         <header class="app-header">
-          <h2>AI 일정 생성기</h2>
+          <h2>AI 플래너</h2>
         </header>
         
         <div class="screen-content scrollable">
           <form id="planner-form" onsubmit="event.preventDefault();">
+            <div id="planner-greet"></div>
             <div class="ai-key-notice" id="ai-key-notice">
               <strong>Gemini API 키가 아직 없어요</strong>
               <span>설정에서 키를 등록하면 실제 AI가 일정을 짜 줍니다. 지금은 샘플 일정만 만들 수 있어요.</span>
@@ -280,11 +282,8 @@
 
         <!-- Inner Screen: AI Generating Loading Screen -->
         <div id="planner-loading-overlay" class="loading-overlay">
-          <div class="spinner-container">
-            <div class="loading-spinner"></div>
-            <div class="pulse-circle"></div>
-          </div>
-          <h3 class="loading-title">어디가 AI가 일정을 짜는 중...</h3>
+          <div class="loading-mascot" id="loading-mascot"></div>
+          <h3 class="loading-title">구름이가 일정을 짜는 중이에요</h3>
           <p class="loading-message" id="loading-status-text">여행지 정보를 모으는 중...</p>
           <p class="loading-elapsed" id="loading-elapsed"></p>
           <button type="button" class="btn btn-sm btn-secondary" id="btn-cancel-generate">취소</button>
@@ -388,7 +387,7 @@
       <!-- SCREEN: Saved Trips -->
       <section id="screen-trips" class="app-screen">
         <header class="app-header">
-          <h2>내 저장된 일정</h2>
+          <h2>내 여행</h2>
         </header>
         <div class="screen-content scrollable">
           <div id="saved-trips-list" class="saved-trips-list">
@@ -403,8 +402,21 @@
           <h2>설정</h2>
         </header>
         <div class="screen-content scrollable">
+          <div class="settings-card settings-me">
+            <h3>🏠 나</h3>
+            <div class="form-group">
+              <label for="setting-origin">사는 곳 (기본 출발 도시)</label>
+              <input type="text" id="setting-origin" placeholder="광주" autocomplete="off" maxlength="30">
+              <small class="settings-hint">홈 지도의 출발 핀, 기차·버스 출발역, 항공 출발 공항에 쓰여요. 전남광주특별시는 '광주'로 적으면 돼요.</small>
+            </div>
+            <div class="settings-toggles">
+              <button type="button" class="toggle-row" id="btn-set-theme"><span>🌙 다크 모드</span><b id="set-theme-state"></b></button>
+              <button type="button" class="toggle-row" id="btn-set-senior"><span>🔠 글자 크기</span><b id="set-senior-state"></b></button>
+            </div>
+          </div>
+
           <div class="settings-card">
-            <h3>AI 연결 (Google Gemini)</h3>
+            <h3>🤖 AI 연결 <span class="ai-state" id="ai-state"></span></h3>
             <p class="settings-desc">
               <a href="https://aistudio.google.com/apikey" target="_blank" rel="noopener">Google AI Studio</a>에서 무료 API 키를 발급받아 붙여넣으세요.
               키는 이 기기 브라우저에만 저장되고, Google API로만 전송됩니다.
@@ -416,6 +428,8 @@
                 <button type="button" class="btn btn-sm btn-secondary" id="btn-toggle-key-visibility">보기</button>
               </div>
             </div>
+            <details class="mini-details">
+              <summary>AI 모델 바꾸기</summary>
             <div class="form-group">
               <label for="setting-model">모델</label>
               <input type="text" id="setting-model" list="model-options" autocomplete="off" spellcheck="false">
@@ -426,6 +440,7 @@
               </datalist>
               <small class="settings-hint">기본값 gemini-3.8-flash. 빠르고 저렴하게 쓰려면 gemini-3.5-flash-lite.</small>
             </div>
+            </details>
             <div class="settings-actions">
               <button class="btn btn-sm btn-primary" id="btn-save-settings">저장</button>
               <button class="btn btn-sm btn-secondary" id="btn-test-settings">연결 테스트</button>
@@ -433,17 +448,12 @@
             <div class="settings-status" id="settings-status"></div>
           </div>
 
-          <div class="settings-card">
-            <h3>지도</h3>
+          <details class="settings-card settings-adv">
+            <summary><h3>🛠 고급 설정</h3><small>지도·식당 검색 키</small></summary>
             <p class="settings-desc">
               <strong>국내 일정</strong>은 네이버 지도, <strong>해외 일정</strong>은 OpenFreeMap(무료·키 없음)으로 표시합니다.
               불러오지 못하면 자동으로 다른 지도로 바뀌어요.
             </p>
-            <div class="form-group">
-              <label for="setting-origin">사는 곳 (기본 출발 도시)</label>
-              <input type="text" id="setting-origin" placeholder="광주" autocomplete="off" maxlength="30">
-              <small class="settings-hint">홈 지도의 출발 핀, 기차·버스 출발역, 항공 출발 공항에 쓰여요. 전남광주특별시는 '광주'로 적으면 돼요.</small>
-            </div>
             <div class="form-group">
               <label for="setting-naver-key">네이버 지도 Client ID</label>
               <input type="text" id="setting-naver-key" placeholder="네이버 클라우드 Maps → Application → 인증 정보" autocomplete="off" spellcheck="false">
@@ -466,10 +476,10 @@
               <button class="btn btn-sm btn-primary" id="btn-save-kakao">저장</button>
             </div>
             <div class="settings-status" id="kakao-status"></div>
-          </div>
+          </details>
 
           <div class="settings-card">
-            <h3>내 데이터</h3>
+            <h3>💾 내 데이터</h3>
             <p class="settings-desc">일정은 이 브라우저에 저장됩니다. 기기를 바꾸거나 브라우저 데이터를 지우기 전에 백업해 두세요.</p>
             <div class="settings-stats" id="settings-stats"></div>
             <div class="settings-actions">
@@ -483,7 +493,7 @@
           </div>
 
           <div class="settings-card">
-            <h3>앱처럼 쓰기</h3>
+            <h3>📱 앱 정보</h3>
             <p class="settings-desc">앱 버전 <strong id="app-version"></strong> · 휴대폰 브라우저 메뉴에서 <strong>홈 화면에 추가</strong>를 누르면 앱처럼 실행되고, 한 번 연 일정은 오프라인에서도 볼 수 있어요. (https 주소에서 열었을 때)</p>
           </div>
         </div>
@@ -494,7 +504,7 @@
       <nav id="bottom-nav">
         <button class="nav-item active" data-tab="explore">
           <span class="nav-icon"><i data-icon="compass" data-size="24"></i></span>
-          <span class="nav-label">탐색</span>
+          <span class="nav-label">홈</span>
         </button>
         <button class="nav-item" data-tab="planner">
           <span class="nav-icon"><i data-icon="sparkles" data-size="24"></i></span>
@@ -502,7 +512,7 @@
         </button>
         <button class="nav-item" data-tab="trips">
           <span class="nav-icon"><i data-icon="calendar" data-size="24"></i></span>
-          <span class="nav-label">내 일정</span>
+          <span class="nav-label">내 여행</span>
         </button>
         <button class="nav-item" data-tab="profile">
           <span class="nav-icon"><i data-icon="sliders" data-size="24"></i></span>
@@ -784,6 +794,7 @@
   <script src="templates.js"></script>
   <script src="recos.js"></script>
   <script src="mapdata.js"></script>
+  <script src="mascot.js"></script>
   <script src="ai.js"></script>
   <script src="app.js"></script>
 </body>
