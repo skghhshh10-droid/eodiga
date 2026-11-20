@@ -1220,3 +1220,12 @@ input[type="time"]::-webkit-calendar-picker-indicator { margin-left: auto; }
   .dm-pin-name { font-size: 10px; padding: 0 6px; }
   .dm-origin-label { font-size: 10px; }
 }
+
+/* ---------- 홈: 1페이지(이달 추천) / 2페이지(지난 추천) ---------- */
+.home-tabs { display: flex; gap: 6px; margin: -4px 0 12px; max-width: 760px; margin-left: auto; margin-right: auto; background: var(--primary-light); padding: 4px; border-radius: 14px; }
+.home-tabs[hidden] { display: none; }
+.home-tab { flex: 1; border: 0; background: transparent; padding: 9px 8px; border-radius: 10px; font-size: var(--fs-sm); font-weight: 800; color: var(--text-muted); cursor: pointer; }
+.home-tab.on { background: var(--card-bg-solid); color: var(--primary-solid); box-shadow: 0 1px 6px rgba(15, 23, 42, 0.08); }
+.home-tab-n { display: inline-block; min-width: 18px; padding: 0 5px; margin-left: 2px; border-radius: 999px; background: var(--primary-solid); color: #fff; font-size: 11px; }
+.template-list.past-list { max-width: 760px; margin-left: auto; margin-right: auto; }
+.past-month { grid-column: 1 / -1; margin: 6px 2px 0; font-size: var(--fs-md); font-weight: 900; color: var(--text-color); }
