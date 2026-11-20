@@ -888,12 +888,20 @@ function setupExploreSearch() {
   }
 }
 
-// --- 홈 화면: 추천 코스 지도 (한국·일본 해안선 일러스트 + 핀) ---
-// 해안선: Natural Earth 1:50m (world-atlas, 공공 데이터)을 단순화. 경도 122~142, 위도 31.2~40.2
-const HOME_MAP = {
-  W: 600, H: 332, lng0: 122, lat1: 40.2, kx: 30.0, ky: 36.94,
-  land: {"CN": "M-4 336L-4 -4L81 -4L72 4L71 7L68 10L63 13L53 14L50 12L47 15L40 16L37 19L31 19L29 21L25 22L10 31L4 39L-4 44L-4 6L4 -4L-4 -4L-4 101L-1 102L2 99L3 99L5 101L10 103L18 102L20 103L17 106L18 112L13 116L16 118L16 120L10 124L7 124L5 120L-2 120L-4 121L-4 336Z", "KP": "M191 58L185 68L181 70L159 70L153 71L140 84L140 89L139 89L131 86L126 88L124 91L121 86L118 86L113 82L111 83L107 88L102 92L101 91L99 87L90 84L97 79L96 78L90 78L87 77L83 78L81 77L86 73L86 69L89 64L92 61L99 57L107 56L103 54L99 54L95 52L95 49L102 34L101 25L93 23L83 16L82 17L82 20L79 22L77 15L70 11L72 4L81 -4L201 -4L195 3L189 6L183 6L179 8L176 11L167 15L166 19L166 27L166 30L164 30L161 33L162 37L174 41L179 48L187 54L191 58Z", "KR": "M139 89L140 89L140 84L153 71L159 70L181 70L185 68L191 58L199 75L212 93L220 108L223 116L224 128L222 143L222 153L224 155L227 153L223 174L216 185L209 188L199 188L195 188L193 192L193 197L183 195L181 191L176 193L171 194L169 196L172 200L172 202L169 204L166 198L162 199L162 202L164 206L160 212L155 209L158 205L157 201L151 207L147 213L145 212L143 210L138 214L137 217L136 217L134 211L128 204L129 202L136 203L134 201L138 199L133 199L129 186L131 184L135 174L138 171L135 170L135 168L141 164L143 160L139 158L141 155L136 149L136 138L135 129L132 131L125 130L125 127L126 123L135 118L137 118L141 120L144 120L146 125L149 120L146 119L142 111L144 107L140 102L140 98L137 92L139 89ZM202 200L199 202L196 199L195 197L198 195L200 192L202 192L202 200ZM182 199L182 203L179 203L178 201L176 202L175 199L175 197L177 195L181 197L182 199ZM127 215L125 216L123 214L127 209L127 208L130 209L131 211L130 213L127 215ZM136 91L135 96L132 94L131 90L132 88L136 91ZM143 216L143 218L141 218L139 216L140 215L141 214L143 216ZM133 137L132 139L130 138L130 133L132 134L133 137ZM125 202L123 203L122 198L120 197L122 195L125 198L125 202ZM268 101L266 102L264 101L265 98L267 98L268 99L268 101ZM130 258L127 258L125 256L126 252L130 249L141 246L147 247L148 250L146 253L137 257L130 258Z", "JP": "M341 148L340 149L337 149L336 147L336 144L339 143L341 146L341 148ZM490 88L487 88L488 87L490 82L490 82L487 81L488 78L489 75L495 70L494 78L497 79L495 85L490 88ZM388 218L385 222L382 221L380 220L380 218L385 212L390 209L387 214L388 218ZM242 294L240 296L239 294L241 292L239 290L240 284L245 283L246 290L242 294ZM218 224L216 226L216 224L216 217L220 219L218 224ZM222 216L221 218L218 215L220 210L220 207L224 204L224 209L221 214L222 216ZM200 274L201 275L205 275L207 279L205 279L202 281L200 280L200 274ZM251 287L249 287L247 286L251 283L254 284L251 287ZM371 211L368 213L366 211L365 210L370 209L371 210L371 211ZM524 202L523 204L521 202L521 200L523 200L524 202ZM212 272L212 272L210 268L213 261L214 263L215 266L213 269L212 272ZM225 258L221 259L224 254L227 253L225 258ZM234 238L232 240L230 239L231 235L232 234L233 235L234 238ZM317 225L316 226L314 226L316 223L317 225ZM308 231L309 232L313 232L311 235L306 234L306 231L308 231ZM232 316L231 316L231 313L234 311L234 312L232 316ZM275 244L281 245L287 242L291 244L291 247L286 256L297 257L295 262L299 264L297 267L300 269L290 286L284 307L284 315L280 325L272 324L271 326L273 330L267 336L262 336L264 330L261 319L263 318L264 315L263 314L260 313L256 323L257 327L259 330L258 333L246 329L244 325L249 323L250 318L246 311L246 305L246 300L250 298L252 295L259 280L255 279L257 276L256 272L253 268L251 263L247 259L244 262L245 266L245 271L250 271L250 277L247 278L245 275L242 274L233 282L235 276L231 271L230 264L233 267L235 270L237 271L240 271L237 265L227 257L228 253L230 253L235 254L235 250L242 247L245 244L248 244L251 243L255 235L261 232L269 234L272 241L275 244ZM371 220L375 221L379 221L379 227L381 232L380 235L382 236L371 244L367 250L365 257L359 249L356 248L349 247L339 253L334 263L330 267L329 272L326 275L324 275L319 275L321 270L315 269L315 266L313 264L315 257L315 255L312 254L312 250L301 253L319 241L324 229L328 226L330 226L334 232L336 232L341 230L344 230L347 228L349 224L348 220L351 220L358 216L362 216L371 220ZM593 -4L600 15L599 28L597 40L590 45L586 53L584 66L573 69L569 76L568 83L571 101L570 114L569 118L564 124L562 128L559 137L557 147L559 153L566 165L559 168L554 173L552 178L553 182L551 185L542 191L538 196L534 194L535 192L535 181L537 179L543 170L540 167L535 168L534 170L533 174L530 177L530 180L532 183L530 187L529 187L527 183L524 181L518 182L514 186L513 198L507 206L505 206L503 203L504 193L507 191L505 189L502 188L497 189L488 202L486 207L479 205L466 205L452 207L452 206L459 203L458 200L451 201L449 198L448 202L447 203L446 202L446 193L447 191L444 190L441 193L436 204L438 207L446 213L446 217L430 222L418 245L411 248L404 246L395 233L394 229L394 222L393 218L398 215L402 209L403 206L401 205L391 206L382 201L374 201L366 203L359 210L356 211L350 211L343 213L334 218L331 217L320 220L313 216L309 217L307 221L304 235L292 227L284 228L277 231L272 228L268 230L267 218L270 215L281 214L288 206L296 202L308 191L319 181L321 177L328 173L338 172L341 175L349 173L359 173L366 172L374 169L386 168L395 165L398 165L397 170L400 173L410 173L417 170L423 164L421 160L420 156L422 151L425 147L431 142L441 128L442 120L442 111L445 104L460 99L460 102L455 108L448 112L447 114L450 117L450 124L454 127L459 127L465 120L490 110L499 101L507 87L517 81L522 76L526 63L534 49L537 36L541 29L542 17L540 13L538 12L534 12L532 10L533 9L535 9L537 7L540 -4Z"}
-};
+// --- 홈 화면: 추천 코스 지도 (해안선 일러스트 + 핀) ---
+// 해안선: Natural Earth 1:50m (world-atlas, 공공 데이터)을 단순화해 mapdata.js에 넣어 둠
+// 국내 지도(한국 확대) / 해외 지도(일본·중국 동부·대만)
+function homeMapOf(region) {
+  const d = (window.HOME_MAP_DATA || {})[region] || (window.HOME_MAP_DATA || {}).overseas;
+  if (!d) return null;
+  if (!d.kx) {
+    const [lng0, lng1, lat0, lat1] = d.bbox;
+    d.kx = d.W / (lng1 - lng0);
+    d.ky = d.kx / Math.cos(((lat0 + lat1) / 2) * Math.PI / 180);
+    d.lng0 = lng0; d.lat1 = lat1;
+  }
+  return d;
+}
 // 사는 곳(출발 도시) 기본값. 2026.7 출범한 전남광주특별시(약칭 광주특별시)
 const DEFAULT_ORIGIN = "광주";
 function homeOrigin() {
@@ -901,29 +909,38 @@ function homeOrigin() {
   const key = Object.keys(CITY_COORDS).find(k => name.includes(k)) || DEFAULT_ORIGIN;
   return { name: key, lat: CITY_COORDS[key][0], lng: CITY_COORDS[key][1] };
 }
-// 핀이 겹치는 곳은 말풍선만 살짝 옮긴다 (지도 단위)
-const HOME_PIN_NUDGE = { gyeongju: [62, -34], busan: [16, 44], couple: [-34, 36] };
 let homeMapPick = null;
 let homePage = 1; // 1: 이달의 추천(지도), 2: 지난 추천
+let homeRegion = (() => { try { return localStorage.getItem("routy_home_region") || "domestic"; } catch (e) { return "domestic"; } })();
+
+// 코스가 국내인지 해외인지 (지정이 없으면 위치로 판단)
+function tplRegion(t) {
+  if (t && (t.region === "domestic" || t.region === "overseas")) return t.region;
+  const c = templateCenter(t);
+  return c && isInKorea(c.lat, c.lng) ? "domestic" : "overseas";
+}
 
 // 추천 묶음: 최신 달 묶음이 1페이지, 나머지(+처음 기본 추천)는 2페이지
-function recoBatches() {
+function recoBatches(region) {
+  const inRegion = list => region ? list.filter(t => tplRegion(t) === region) : list;
   const monthly = (window.MONTHLY_RECOS || [])
     .filter(b => b && b.month && Array.isArray(b.templates) && b.templates.length)
-    .slice().sort((a, b) => String(b.month).localeCompare(String(a.month)));
-  const base = { month: "", label: "처음 추천", templates: Object.values(window.PREDEFINED_TEMPLATES || {}) };
-  if (!monthly.length) return { current: Object.assign({ label: "추천 코스" }, base), past: [] };
+    .slice().sort((a, b) => String(b.month).localeCompare(String(a.month)))
+    .map(b => Object.assign({}, b, { templates: inRegion(b.templates) }))
+    .filter(b => b.templates.length);
+  const base = { month: "", label: "처음 추천", templates: inRegion(Object.values(window.PREDEFINED_TEMPLATES || {})) };
+  if (!monthly.length) return { current: Object.assign({}, base, { label: "추천 코스" }), past: [] };
   const label = b => `${Number(b.month.slice(5, 7))}월 추천${b.month.slice(0, 4) !== String(new Date().getFullYear()) ? ` (${b.month.slice(0, 4)})` : ""}`;
   const withLabel = monthly.map(b => Object.assign({ label: label(b) }, b));
-  return { current: withLabel[0], past: withLabel.slice(1).concat(base) };
+  return { current: withLabel[0], past: withLabel.slice(1).concat(base.templates.length ? [base] : []) };
 }
 function tplTheme(t) {
   const th = t && t.theme;
   return th && th.c1 && th.c2 ? { c1: th.c1, c2: th.c2, emoji: th.emoji || "✈️" } : destTheme(t && t.destination);
 }
 
-function homeMapXY(lat, lng) {
-  return [(lng - HOME_MAP.lng0) * HOME_MAP.kx, (HOME_MAP.lat1 - lat) * HOME_MAP.ky];
+function homeMapXY(lat, lng, map) {
+  return [(lng - map.lng0) * map.kx, (map.lat1 - lat) * map.ky];
 }
 function templateCenter(t) {
   const first = String(t.destination || "").split("/")[0].trim();
@@ -961,19 +978,21 @@ function templateCardEl(template) {
 function renderHomeMap(list, matchKeys) {
   const wrap = document.getElementById("dest-map-wrap");
   if (!wrap) return;
+  const HOME_MAP = homeMapOf(homeRegion);
+  if (!HOME_MAP) { wrap.innerHTML = ""; return; }
   const HOME_MAP_ORIGIN = homeOrigin();
   const pins = list.map(t => {
     const c = templateCenter(t);
     if (!c) return null;
-    const [x, y] = homeMapXY(c.lat, c.lng);
-    const manual = HOME_PIN_NUDGE[t.id] || (Array.isArray(t.pinNudge) ? t.pinNudge : null);
+    const [x, y] = homeMapXY(c.lat, c.lng, HOME_MAP);
+    const manual = Array.isArray(t.pinNudge) ? t.pinNudge : null;
     const [dx, dy] = manual || [0, 0];
     const inside = x > 6 && x < HOME_MAP.W - 6 && y > 6 && y < HOME_MAP.H - 6;
     return { t, x, y, bx: x + dx, by: y + dy, manual: !!manual, inside, th: tplTheme(t), on: !matchKeys || matchKeys.has(t.id) };
   }).filter(Boolean);
   // 지도 밖 코스는 칩으로만. 핀(말풍선+이름표)이 서로·출발 표시와 겹치지 않게 밀어낸다
   const shown = pins.filter(p => p.inside);
-  const [ox0, oy0] = homeMapXY(HOME_MAP_ORIGIN.lat, HOME_MAP_ORIGIN.lng);
+  const [ox0, oy0] = homeMapXY(HOME_MAP_ORIGIN.lat, HOME_MAP_ORIGIN.lng, HOME_MAP);
   const fixed = [{ bx: ox0, by: oy0 + 10 }]; // 출발 점 + 위쪽 이름표
   const RX = 64, RY = 86; // 핀 하나가 차지하는 너비·높이(지도 단위)
   const hits = (x, y, others) => others.some(q => Math.hypot((x - q.bx) / RX, (y - q.by) / RY) < 1);
@@ -987,7 +1006,7 @@ function renderHomeMap(list, matchKeys) {
     p.bx = p.x + spot[0]; p.by = p.y + spot[1];
     placed.push(p);
   });
-  const [ox, oy] = homeMapXY(HOME_MAP_ORIGIN.lat, HOME_MAP_ORIGIN.lng);
+  const [ox, oy] = homeMapXY(HOME_MAP_ORIGIN.lat, HOME_MAP_ORIGIN.lng, HOME_MAP);
   const arc = (x, y) => {
     const mx = (ox + x) / 2, my = (oy + y) / 2 - Math.min(70, Math.hypot(x - ox, y - oy) * 0.35);
     return `M${ox.toFixed(0)} ${oy.toFixed(0)} Q${mx.toFixed(0)} ${my.toFixed(0)} ${x.toFixed(0)} ${y.toFixed(0)}`;
@@ -995,7 +1014,7 @@ function renderHomeMap(list, matchKeys) {
   const { W, H } = HOME_MAP;
   const pct = (v, total) => (v / total * 100).toFixed(2) + "%";
   wrap.innerHTML = `
-    <div class="dest-map" style="aspect-ratio:${W}/${H}">
+    <div class="dest-map" style="aspect-ratio:${W}/${H};max-width:min(760px, ${(64 * W / H).toFixed(1)}vh)">
       <svg viewBox="0 0 ${W} ${H}" preserveAspectRatio="none" aria-hidden="true">
         <defs>
           <pattern id="dm-waves" width="28" height="14" patternUnits="userSpaceOnUse">
@@ -1004,9 +1023,8 @@ function renderHomeMap(list, matchKeys) {
         </defs>
         <rect width="${W}" height="${H}" class="dm-sea"/>
         <rect width="${W}" height="${H}" fill="url(#dm-waves)"/>
-        ${Object.entries(HOME_MAP.land).map(([k, d]) => `<path d="${d}" class="dm-land ${k === "KR" || k === "JP" ? "main" : "far"}"/>`).join("")}
-        <text x="${(W * 0.27).toFixed(0)}" y="${(H * 0.86).toFixed(0)}" class="dm-sea-name">남해</text>
-        <text x="${(W * 0.56).toFixed(0)}" y="${(H * 0.42).toFixed(0)}" class="dm-sea-name">동해</text>
+        ${Object.entries(HOME_MAP.land).map(([k, d]) => `<path d="${d}" class="dm-land ${(HOME_MAP.main || ["KR"]).includes(k) ? "main" : "far"}"/>`).join("")}
+        ${(HOME_MAP.seas || []).map(([name, lat, lng]) => { const [sx, sy] = homeMapXY(lat, lng, HOME_MAP); return `<text x="${sx.toFixed(0)}" y="${sy.toFixed(0)}" class="dm-sea-name" text-anchor="middle">${esc(name)}</text>`; }).join("")}
         ${shown.map(p => `<path d="${arc(p.x, p.y)}" class="dm-route ${p.on ? "" : "off"} ${homeMapPick === p.t.id ? "pick" : ""}"/>`).join("")}
         ${shown.map(p => (Math.abs(p.bx - p.x) > 1 || Math.abs(p.by - p.y) > 1) ? `<line x1="${p.x.toFixed(0)}" y1="${p.y.toFixed(0)}" x2="${p.bx.toFixed(0)}" y2="${p.by.toFixed(0)}" class="dm-leader"/>` : "").join("")}
         ${shown.map(p => `<circle cx="${p.x.toFixed(0)}" cy="${p.y.toFixed(0)}" r="4" class="dm-dot ${p.on ? "" : "off"}"/>`).join("")}
@@ -1031,6 +1049,23 @@ function renderHomeMap(list, matchKeys) {
   }));
   const chip = wrap.querySelector(".dm-chip.pick");
   if (chip) chip.parentElement.scrollTo({ left: chip.offsetLeft - 8, behavior: "smooth" });
+}
+
+function renderRegionTabs() {
+  const box = document.getElementById("home-region");
+  if (!box) return;
+  const n = r => { const b = recoBatches(r); return b.current.templates.length; };
+  box.innerHTML = `
+    <button type="button" class="region-tab ${homeRegion === "domestic" ? "on" : ""}" data-region="domestic">🇰🇷 국내 <small>${n("domestic")}</small></button>
+    <button type="button" class="region-tab ${homeRegion === "overseas" ? "on" : ""}" data-region="overseas">✈️ 해외 <small>${n("overseas")}</small></button>`;
+  box.querySelectorAll("[data-region]").forEach(b => b.addEventListener("click", () => {
+    if (homeRegion === b.dataset.region) return;
+    homeRegion = b.dataset.region;
+    try { localStorage.setItem("routy_home_region", homeRegion); } catch (e) {}
+    homePage = 1;
+    homeMapPick = null;
+    renderTemplates();
+  }));
 }
 
 function renderHomeTabs(batches) {
@@ -1064,7 +1099,8 @@ function renderTemplates() {
 
   const searchInput = document.getElementById("explore-search-input");
   const query = searchInput ? searchInput.value.trim().toLowerCase() : "";
-  const batches = recoBatches();
+  renderRegionTabs();
+  const batches = recoBatches(homeRegion);
   if (!batches.past.length) homePage = 1;
   renderHomeTabs(batches);
   const mapWrap = document.getElementById("dest-map-wrap");
@@ -1100,19 +1136,24 @@ function renderTemplates() {
     return;
   }
   const inPast = query && batches.past.some(b => b.templates.some(t => matchesQuery(t, query)));
-  renderNoResult(container, query, searchInput, inPast);
+  const other = homeRegion === "domestic" ? "overseas" : "domestic";
+  const ob = recoBatches(other);
+  const inOther = query && [ob.current].concat(ob.past).some(b => b.templates.some(t => matchesQuery(t, query)));
+  renderNoResult(container, query, searchInput, inPast, inOther ? other : "");
 }
 
-function renderNoResult(container, query, searchInput, inPast) {
+function renderNoResult(container, query, searchInput, inPast, otherRegion) {
   const noResult = document.createElement("div");
   noResult.className = "no-search-results";
   noResult.innerHTML = `
     <div class="no-results-icon">${window.icon("search", 32)}</div>
     <p>"<strong>${esc(query)}</strong>"에 맞는 추천 코스가 여기엔 없어요.</p>
-    ${inPast ? `<button class="btn btn-sm btn-secondary" style="margin-top:10px" id="btn-search-past">지난 추천에서 보기</button>` : `<span>AI 플래너에서 바로 일정을 만들어 보세요!</span>`}
+    ${otherRegion ? `<button class="btn btn-sm btn-secondary" style="margin-top:10px" id="btn-search-region">${otherRegion === "overseas" ? "해외" : "국내"} 추천에서 보기</button>` : inPast ? `<button class="btn btn-sm btn-secondary" style="margin-top:10px" id="btn-search-past">지난 추천에서 보기</button>` : `<span>AI 플래너에서 바로 일정을 만들어 보세요!</span>`}
     <button class="btn btn-sm btn-primary" style="margin-top:12px" id="btn-explore-to-planner">"${esc(query)}" AI로 일정 만들기</button>
   `;
   container.appendChild(noResult);
+  const reg = document.getElementById("btn-search-region");
+  if (reg) reg.addEventListener("click", () => { homeRegion = otherRegion; try { localStorage.setItem("routy_home_region", homeRegion); } catch (e) {} homePage = 1; homeMapPick = null; renderTemplates(); });
   const past = document.getElementById("btn-search-past");
   if (past) past.addEventListener("click", () => { homePage = 2; renderTemplates(); });
   const go = document.getElementById("btn-explore-to-planner");
@@ -1158,7 +1199,8 @@ let tplSetupTemplate = null;
 const AIRPORT_ALTS = { HND: ["NRT"], NRT: ["HND"], TPE: ["TSA"], TSA: ["TPE"], BKK: ["DMK"], DMK: ["BKK"], KIX: ["ITM"], PVG: ["SHA"], ICN: ["GMP"] };
 const AIRPORT_NAMES = { KIX: "간사이", ITM: "이타미(오사카)", NRT: "나리타", HND: "하네다", FUK: "후쿠오카", CTS: "신치토세(삿포로)", OKA: "나하(오키나와)",
   NGO: "주부(나고야)", TPE: "타오위안(타이베이)", TSA: "쑹산(타이베이)", HKG: "홍콩", BKK: "수완나품(방콕)", DMK: "돈므앙(방콕)", DAD: "다낭", CXR: "깜라인(나트랑)",
-  HAN: "하노이", SGN: "호치민", CEB: "세부", SIN: "싱가포르", DPS: "발리", GUM: "괌", CJU: "제주", PUS: "김해(부산)", GMP: "김포", ICN: "인천" };
+  HAN: "하노이", SGN: "호치민", CEB: "세부", SIN: "싱가포르", DPS: "발리", GUM: "괌", CJU: "제주", PUS: "김해(부산)", GMP: "김포", ICN: "인천",
+  PVG: "푸둥(상하이)", SHA: "훙차오(상하이)", TAO: "칭다오", KHH: "가오슝", PEK: "베이징" };
 
 function templateAirports(template) {
   const texts = [template.destination].concat(template.places.filter(isAirportPlace).map(p => p.name)).join(" ");
@@ -2652,7 +2694,7 @@ function formatMinutes(m) {
 
 
 
-const APP_VERSION = "v52";
+const APP_VERSION = "v53";
 
 // --- 목적지별 표지 색·그림 (사진 대신 저작권 걱정 없는 색과 이모지) ---
 const DEST_THEMES = [
@@ -2665,6 +2707,8 @@ const DEST_THEMES = [
   [/강릉|속초|양양|동해|삼척/, "#2E86DE", "#7FD3F7", "🌅"],
   [/경주|안동|전주|공주|부여/, "#B5651D", "#F2C14E", "🪷"],
   [/서울|인천|수원/, "#4A4E9C", "#7F8CE0", "🏙️"],
+  [/칭다오/, "#0E7C66", "#9BE15D", "🍺"],
+  [/가오슝/, "#F39C12", "#FFE29F", "🌅"],
   [/대만|타이베이|홍콩|마카오|상하이/, "#E84A5F", "#FF847C", "🏮"],
   [/방콕|태국|치앙마이|푸껫|다낭|베트남|나트랑|세부|발리|괌|사이판/, "#F7971E", "#FFD200", "🌴"],
   [/파리|런던|로마|유럽|스페인|바르셀로나|이탈리아/, "#6D5BD0", "#C4A1FF", "🏰"],

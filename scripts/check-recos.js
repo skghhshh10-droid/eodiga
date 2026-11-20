@@ -14,8 +14,9 @@ const errors = [];
 const err = (where, msg) => errors.push(`${where}: ${msg}`);
 const CATS = new Set(["sightseeing", "restaurant", "cafe", "shopping", "hotel", "transit"]);
 const TIME = /^([01]\d|2[0-3]):[0-5]\d - ([01]\d|2[0-3]):[0-5]\d$/;
-// 홈 지도 범위 (app.js HOME_MAP): 경도 122~142, 위도 31.2~40.2
-const inMap = (lat, lng) => lng > 122.2 && lng < 141.8 && lat > 31.4 && lat < 40.0;
+// 홈 지도 범위 (mapdata.js): 국내는 한국 지도, 해외는 일본(홋카이도 포함)·중국 동부·대만 지도
+const inKorea = (lat, lng) => lat > 33 && lat < 38.7 && lng > 124.5 && lng < 131;
+const inMap = (lat, lng) => inKorea(lat, lng) || (lng > 119.0 && lng < 146.0 && lat > 21.8 && lat < 45.5);
 if (!Array.isArray(batches)) err("recos.js", "window.MONTHLY_RECOS 배열이 없음");
 const ids = new Set(Object.keys(base));
 const months = new Set();
@@ -58,7 +59,7 @@ const months = new Set();
       if (d < t.duration && !day.some(p => p.category === "hotel")) err(tw, `${d}일차 숙소 없음`);
       for (let i = 1; i < day.length; i++) if ((day[i].time || "") < (day[i - 1].time || "")) err(tw, `${d}일차 시간 순서`);
     }
-    if (n && !inMap(sumLat / n, sumLng / n)) err(tw, "코스 중심이 홈 지도(한국·일본 서부~도쿄) 밖");
+    if (n && !inMap(sumLat / n, sumLng / n)) err(tw, "코스 중심이 홈 지도(한국 / 일본·중국 동부·대만) 밖");
     places.forEach(p => {
       if (typeof p.lat === "number" && n && p.category !== "transit" && Math.hypot(p.lat - sumLat / n, (p.lng - sumLng / n) * 0.8) > 1.2) err(`${tw} / ${p.name}`, "다른 장소들과 너무 멀리 떨어진 좌표(오타 의심)");
     });
