@@ -423,8 +423,15 @@
     return !!getSettings().placesKey;
   }
 
+  // 식당 정보 줄(별점·영업 중)은 한도 끝 25회를 남겨 둔다 → 끼니 1위 식당 고르기가 항상 먼저
+  const DETAILS_RESERVE = 25;
+  function localDay() {
+    const d = new Date();
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+  }
+
   function placesUsage() {
-    const today = new Date().toISOString().slice(0, 10);
+    const today = localDay();
     try {
       const u = JSON.parse(localStorage.getItem(PLACES_USAGE_KEY) || "{}");
       return u.date === today ? { date: today, n: u.n || 0 } : { date: today, n: 0 };
@@ -528,7 +535,7 @@
   async function placeDetails(id, opts = {}) {
     const key = getSettings().placesKey;
     if (!key) throw new Error("Google Places 키가 없어요.");
-    if (placesUsage().n >= PLACES_DAILY_LIMIT) throw new Error("오늘 조회 한도를 다 썼어요.");
+    if (placesUsage().n >= PLACES_DAILY_LIMIT - DETAILS_RESERVE) throw new Error("오늘 정보 조회는 여기까지예요(식당 고르기용으로 남겨 둠).");
     countPlacesCall();
     const res = await fetch(`https://places.googleapis.com/v1/places/${encodeURIComponent(id)}?languageCode=ko`, {
       headers: { "X-Goog-Api-Key": key, "X-Goog-FieldMask": PLACE_FIELDS.join(",") },

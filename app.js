@@ -2643,7 +2643,7 @@ function formatMinutes(m) {
 
 
 
-const APP_VERSION = "v49";
+const APP_VERSION = "v50";
 
 // --- 목적지별 표지 색·그림 (사진 대신 저작권 걱정 없는 색과 이모지) ---
 const DEST_THEMES = [
@@ -2732,6 +2732,21 @@ function setupDietInputs() {
 // --- 식당 Google 정보 줄 + 이름 눌러 Google 지도 ---
 const placeInfo = new Map();      // googlePlaceId → 정보 (이번 실행 동안만, 저장 안 함)
 const placeInfoPending = new Set();
+// 앱을 다시 열 때마다 같은 식당 정보를 또 조회하지 않도록, 열려 있는 동안(세션)만 잠깐 보관
+const PLACE_INFO_SESSION = "routy_place_info";
+try {
+  const saved = JSON.parse(sessionStorage.getItem(PLACE_INFO_SESSION) || "{}");
+  Object.entries(saved).forEach(([id, v]) => { if (v && !v.error) placeInfo.set(id, v); });
+} catch (e) {}
+function rememberPlaceInfo(id, info) {
+  placeInfo.set(id, info);
+  if (!info || info.error) return;
+  try {
+    const keep = {};
+    [...placeInfo.entries()].filter(([, v]) => v && !v.error).slice(-60).forEach(([k, v]) => { keep[k] = v; });
+    sessionStorage.setItem(PLACE_INFO_SESSION, JSON.stringify(keep));
+  } catch (e) {}
+}
 const PRICE_SIGNS = { PRICE_LEVEL_INEXPENSIVE: "₩", PRICE_LEVEL_MODERATE: "₩₩", PRICE_LEVEL_EXPENSIVE: "₩₩₩", PRICE_LEVEL_VERY_EXPENSIVE: "₩₩₩₩" };
 
 function googlePlaceUrl(place) {
@@ -2779,6 +2794,13 @@ function openingStatus(info, place) {
 }
 
 function placeInfoHtml(place) {
+  // 끼니 자리가 아직 식당으로 안 바뀐 경우: 이유를 알려 준다
+  if (!place.googlePlaceId && place.mealSlot && place.category === "restaurant") {
+    if (!window.RoutyAI.hasPlacesKey()) return `<div class="place-info loading">설정에 Google Places 키를 넣으면 주변 1위 식당으로 바뀌어요.</div>`;
+    const u = window.RoutyAI.placesUsage();
+    if (u.n >= window.RoutyAI.PLACES_DAILY_LIMIT) return `<div class="place-info loading">오늘 Google 조회 한도를 다 써서, 내일 앱을 열면 1위 식당으로 바꿔요. 'TOP 5'는 내일 쓸 수 있어요.</div>`;
+    return `<div class="place-info loading">주변 1위 식당 찾는 중…</div>`;
+  }
   if (!place.googlePlaceId || !["restaurant", "cafe"].includes(place.category)) return "";
   const info = placeInfo.get(place.googlePlaceId);
   if (!info) {
@@ -2812,7 +2834,7 @@ async function runPlaceInfoQueue() {
   const ids = [...placeInfoPending].filter(id => !placeInfo.has(id));
   for (const id of ids) {
     try {
-      placeInfo.set(id, await window.RoutyAI.placeDetails(id));
+      rememberPlaceInfo(id, await window.RoutyAI.placeDetails(id));
     } catch (e) {
       placeInfo.set(id, { error: e.message });
     }
@@ -4632,6 +4654,8 @@ function applyTopPick(place, it, center) {
   // AI가 쓴 설명(예: 부모님 입맛에 맞는 정갈한 가이세키)은 그대로 두고, 가게 정보는 Google 정보 줄로 보여 준다
   if (!place.description || /Google 지도에서 고른 곳$/.test(place.description)) place.description = "";
   place.googlePlaceId = it.id;
+  // 검색 결과에 별점·영업시간이 이미 있으니 정보 줄을 위해 다시 조회하지 않는다
+  if (it.id && (it.rating || it.periods)) rememberPlaceInfo(it.id, it);
   place.coordMissing = false;
   place.coordFixed = false;
   place.coordChecked = true; // Google 좌표라 다시 보정할 필요 없음
