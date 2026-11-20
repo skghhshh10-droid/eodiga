@@ -2211,7 +2211,8 @@ function setupPlaceActionDelegation() {
     if (pib && state.activeTrip) {
       e.stopPropagation();
       const gid = pib.getAttribute("data-gid");
-      if (expandedInfo.has(gid)) expandedInfo.delete(gid); else expandedInfo.add(gid);
+      const shown = expandedInfo.has(gid) || (placeInfo.get(gid) && !placeInfo.get(gid).error && !collapsedInfo.has(gid));
+      if (shown) { expandedInfo.delete(gid); collapsedInfo.add(gid); } else { expandedInfo.add(gid); collapsedInfo.delete(gid); }
       renderTimeline();
       return;
     }
@@ -2651,7 +2652,7 @@ function formatMinutes(m) {
 
 
 
-const APP_VERSION = "v51";
+const APP_VERSION = "v52";
 
 // --- 목적지별 표지 색·그림 (사진 대신 저작권 걱정 없는 색과 이모지) ---
 const DEST_THEMES = [
@@ -2741,6 +2742,7 @@ function setupDietInputs() {
 const placeInfo = new Map();      // googlePlaceId → 정보 (이번 실행 동안만, 저장 안 함)
 const placeInfoPending = new Set();
 const expandedInfo = new Set();     // '정보 더보기'를 펼친 식당 (googlePlaceId)
+const collapsedInfo = new Set();    // 자동으로 보이던 정보를 접은 식당
 // 앱을 다시 열 때마다 같은 식당 정보를 또 조회하지 않도록, 열려 있는 동안(세션)만 잠깐 보관
 const PLACE_INFO_SESSION = "routy_place_info";
 try {
@@ -2811,9 +2813,12 @@ function placeInfoHtml(place) {
     return `<div class="place-info loading">주변 1위 식당 찾는 중…</div>`;
   }
   if (!place.googlePlaceId || !["restaurant", "cafe"].includes(place.category)) return "";
-  // 이름만 먼저 보여 주고, '정보 더보기'를 눌렀을 때만 Google에서 불러온다 (조회 횟수 절약)
+  // 1위를 고를 때 받은 정보가 있으면 바로 보여 주고(추가 조회 없음),
+  // 없으면(앱을 다시 연 뒤) 이름만 두고 '보기'를 눌렀을 때만 Google에서 불러온다
   const gid = esc(place.googlePlaceId);
-  if (!expandedInfo.has(place.googlePlaceId)) {
+  const known = placeInfo.get(place.googlePlaceId);
+  const autoShow = known && !known.error && !collapsedInfo.has(place.googlePlaceId);
+  if (!autoShow && !expandedInfo.has(place.googlePlaceId)) {
     return `<button type="button" class="pi-more" data-action="pinfo" data-gid="${gid}">ⓘ 별점·영업시간 보기</button>`;
   }
   const info = placeInfo.get(place.googlePlaceId);
@@ -4602,6 +4607,9 @@ async function fetchTopItems(place, trip) {
   }
   if (!items.length) items = await window.RoutyAI.placesNearby(center.lat, center.lng, { type });
   topCache.set(key, items);
+  // 같은 검색 결과에 이미 일정에 넣은 식당이 있으면 그 정보 줄도 추가 조회 없이 채움
+  const inTrip = new Set(((trip && trip.places) || []).map(p => p.googlePlaceId).filter(Boolean));
+  items.forEach(it => { if (inTrip.has(it.id) && !placeInfo.has(it.id)) rememberPlaceInfo(it.id, it); });
   items.forEach(i => { if (!placeInfo.has(i.id)) placeInfo.set(i.id, i); });
   if (!place.topCenter) place.topCenter = center;
   if (place.topQuery === undefined) place.topQuery = query;
