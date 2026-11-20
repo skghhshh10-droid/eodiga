@@ -2207,6 +2207,14 @@ function setupPlaceActionDelegation() {
       applyIntercity(icm.getAttribute("data-mode"));
       return;
     }
+    const pib = e.target.closest("[data-action=pinfo]");
+    if (pib && state.activeTrip) {
+      e.stopPropagation();
+      const gid = pib.getAttribute("data-gid");
+      if (expandedInfo.has(gid)) expandedInfo.delete(gid); else expandedInfo.add(gid);
+      renderTimeline();
+      return;
+    }
     const rb = e.target.closest("[data-action=railblock], [data-action=railsite]");
     if (rb && state.activeTrip) {
       e.stopPropagation();
@@ -2643,7 +2651,7 @@ function formatMinutes(m) {
 
 
 
-const APP_VERSION = "v50";
+const APP_VERSION = "v51";
 
 // --- 목적지별 표지 색·그림 (사진 대신 저작권 걱정 없는 색과 이모지) ---
 const DEST_THEMES = [
@@ -2732,6 +2740,7 @@ function setupDietInputs() {
 // --- 식당 Google 정보 줄 + 이름 눌러 Google 지도 ---
 const placeInfo = new Map();      // googlePlaceId → 정보 (이번 실행 동안만, 저장 안 함)
 const placeInfoPending = new Set();
+const expandedInfo = new Set();     // '정보 더보기'를 펼친 식당 (googlePlaceId)
 // 앱을 다시 열 때마다 같은 식당 정보를 또 조회하지 않도록, 열려 있는 동안(세션)만 잠깐 보관
 const PLACE_INFO_SESSION = "routy_place_info";
 try {
@@ -2802,12 +2811,18 @@ function placeInfoHtml(place) {
     return `<div class="place-info loading">주변 1위 식당 찾는 중…</div>`;
   }
   if (!place.googlePlaceId || !["restaurant", "cafe"].includes(place.category)) return "";
+  // 이름만 먼저 보여 주고, '정보 더보기'를 눌렀을 때만 Google에서 불러온다 (조회 횟수 절약)
+  const gid = esc(place.googlePlaceId);
+  if (!expandedInfo.has(place.googlePlaceId)) {
+    return `<button type="button" class="pi-more" data-action="pinfo" data-gid="${gid}">ⓘ 별점·영업시간 보기</button>`;
+  }
   const info = placeInfo.get(place.googlePlaceId);
+  const fold = `<button type="button" class="pi-more on" data-action="pinfo" data-gid="${gid}">접기</button>`;
   if (!info) {
     queuePlaceInfo(place.googlePlaceId);
     return `<div class="place-info loading">Google 정보 불러오는 중…</div>`;
   }
-  if (info.error) return "";
+  if (info.error) return `<div class="place-info loading">${esc(info.error)}</div>${fold}`;
   const bits = [];
   if (info.rating) bits.push(`<b class="pi-rating">★ ${info.rating.toFixed(1)}</b> <span class="pi-count">(${info.count.toLocaleString("ko-KR")})</span>`);
   if (PRICE_SIGNS[info.priceLevel]) bits.push(PRICE_SIGNS[info.priceLevel]);
@@ -2819,7 +2834,7 @@ function placeInfoHtml(place) {
       <div class="pi-line">${bits.join(" · ")}</div>
       ${info.summary ? `<div class="pi-summary">${esc(info.summary)}</div>` : ""}
       ${info.address ? `<div class="pi-addr">${window.icon("pin", 13)}${esc(info.address)}</div>` : ""}
-    </div>`;
+    </div>${fold}`;
 }
 
 let placeInfoTimer = null;
@@ -2837,6 +2852,7 @@ async function runPlaceInfoQueue() {
       rememberPlaceInfo(id, await window.RoutyAI.placeDetails(id));
     } catch (e) {
       placeInfo.set(id, { error: e.message });
+      setTimeout(() => { if (placeInfo.get(id) && placeInfo.get(id).error) placeInfo.delete(id); }, 60000);
     }
     placeInfoPending.delete(id);
   }
