@@ -174,6 +174,7 @@ document.addEventListener("DOMContentLoaded", () => {
   setupDietInputs();
   setupTemplateSetup();
   setupFlightFit();
+  setupPlannerSteps();
 
   // Render initial explorer state
   renderExploreTab();
@@ -2252,7 +2253,7 @@ function formatMinutes(m) {
 
 
 
-const APP_VERSION = "v43";
+const APP_VERSION = "v44";
 
 // --- 목적지별 표지 색·그림 (사진 대신 저작권 걱정 없는 색과 이모지) ---
 const DEST_THEMES = [
@@ -2982,6 +2983,38 @@ async function fitTripToDrive() {
   }
 }
 
+
+
+// --- AI 플래너 단계형 입력: ① 어디로·언제 → ② 누구와·어떻게 → ③ 스타일·식성 ---
+function setupPlannerSteps() {
+  const form = document.getElementById("planner-form");
+  if (!form) return;
+  const go = (n) => {
+    if (n > 1 && !document.getElementById("input-destination").value.trim()) {
+      n = 1;
+      showToast("어디로 갈지 먼저 적어 주세요.", 2500);
+      document.getElementById("input-destination").focus();
+    }
+    form.querySelectorAll(".pstep").forEach(el => el.classList.toggle("active", el.dataset.step === String(n)));
+    form.querySelectorAll(".pstep-tab").forEach(el => {
+      el.classList.toggle("active", el.dataset.goto === String(n));
+      el.classList.toggle("done", parseInt(el.dataset.goto, 10) < n);
+    });
+    const scroller = form.closest(".scrollable");
+    if (scroller) scroller.scrollTo({ top: 0, behavior: "smooth" });
+  };
+  window.plannerGoStep = go;
+  form.querySelectorAll("[data-goto]").forEach(b => b.addEventListener("click", () => go(parseInt(b.dataset.goto, 10))));
+  form.querySelectorAll("[data-next]").forEach(b => b.addEventListener("click", () => go(parseInt(b.dataset.next, 10))));
+  form.querySelectorAll("[data-quick]").forEach(b => b.addEventListener("click", () => {
+    if (!document.getElementById("input-destination").value.trim()) { go(1); return; }
+    document.getElementById("btn-generate-itinerary").click();
+  }));
+  // 목적지에서 엔터 → 다음 단계
+  document.getElementById("input-destination").addEventListener("keydown", (e) => {
+    if (e.key === "Enter" && !e.isComposing) { e.preventDefault(); go(2); }
+  });
+}
 
 // --- 날마다 기상 시간: 그 시간에 맞춰 그날 일정 다시 짜기 ---
 function openWakeDialog() {
