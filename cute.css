@@ -362,3 +362,77 @@ input:focus, select:focus, textarea:focus { border-color: var(--primary-solid) !
   #bottom-nav .nav-item .nav-label { font-size: 17px; }
   #bottom-nav .nav-item.active { background: var(--primary-light); }
 }
+
+/* =========================================================
+   톤 다운: 귀여움은 구름이·파스텔 포인트에만, 나머지는 깔끔하게
+   ========================================================= */
+:root {
+  --bg-color: #FAF8F4;
+  --bg-device: #FAF8F4;
+  --border-color: #ECE7DF;
+  --text-color: #2E2A33;
+  --text-muted: #85808C;
+  --shadow-sm: 0 1px 2px rgba(30, 25, 40, 0.04), 0 2px 8px rgba(30, 25, 40, 0.04);
+  --shadow-md: 0 1px 3px rgba(30, 25, 40, 0.05), 0 6px 18px rgba(30, 25, 40, 0.06);
+  --shadow-lg: 0 2px 6px rgba(30, 25, 40, 0.06), 0 14px 32px rgba(30, 25, 40, 0.10);
+  --font-ui: 'Pretendard Variable', Pretendard, -apple-system, 'Apple SD Gothic Neo', 'Noto Sans KR', sans-serif;
+}
+[data-theme="dark"] { --bg-color: #1B1A22; --bg-device: #1B1A22; --card-bg: #25242E; --card-bg-solid: #25242E; --border-color: #34323F; }
+
+* { font-family: var(--font-ui); }
+h1, h2, h3, .app-header h2, .btn, .chip-btn, .nav-label, .region-tab, .home-tab,
+.pstep-tab span, .tl-time b, .day-tab, .cover-chip, .tpl-place, .tpl-days, .template-card h3,
+.dm-pin-name, .dm-chip, .empty-title, .loading-title, .tk-code, .tk-stub b,
+.section-title h2, .settings-card h3, .ai-state, .toggle-row span, .saved-trip-info h4, .seg-btn,
+.form-group label, .tpl-go, .desktop-nav-item {
+  font-family: var(--font-ui) !important;
+  letter-spacing: -0.01em;
+}
+h1, h2, h3, .app-header h2, .template-card h3, .section-title h2, .settings-card h3, .empty-title, .loading-title, .tl-time b, .tpl-place { font-weight: 700 !important; }
+.btn, .chip-btn, .region-tab, .home-tab, .day-tab, .cover-chip, .dm-chip, .nav-label, .seg-btn, .tpl-go, .toggle-row span, .pstep-tab span, .form-group label { font-weight: 600 !important; }
+.ai-state, .dm-pin-name, .tpl-days { font-weight: 600 !important; }
+
+/* 로고와 구름이 말풍선만 둥근 글꼴 */
+.logo-text, .mascot-bubble { font-family: var(--font-cute) !important; font-weight: 400 !important; }
+
+/* 크기 정리 */
+.app-header h2 { font-size: 20px; }
+.section-title h2 { font-size: 18px; }
+.template-card h3 { font-size: 19px; }
+.settings-card h3 { font-size: 18px; }
+.empty-title, .loading-title { font-size: 19px; }
+.tl-time b { font-size: 18px; }
+.btn { font-size: 16px; }
+.chip-btn, .dm-chip, .cover-chip { font-size: 14px; }
+.region-tab { font-size: 16px; padding: 10px; }
+.nav-item .nav-label { font-size: 12px; }
+.form-group label { font-size: 14px; }
+.home-greet .mascot-bubble, .mascot-bubble { font-size: 16px; }
+
+/* 얇은 테두리, 볼록 그림자 없음 */
+.template-card, .settings-card, .saved-trip-item, .budget-card, .booked-box, .stay-panel, .info-card, .action-card {
+  border-width: 1px !important; border-radius: 20px !important;
+}
+.tl-body, .search-pill-box, .mascot-bubble, .toggle-row, .dest-map { border-width: 1px !important; }
+.mascot-bubble::before { border-left-width: 1px; border-bottom-width: 1px; }
+.form-group input, .form-group select, .form-group textarea,
+input[type="text"], input[type="date"], input[type="time"], select, textarea { border-width: 1px !important; border-radius: 12px !important; }
+.btn-primary, .btn-primary:active { box-shadow: 0 4px 14px rgba(28, 159, 181, 0.22) !important; background: var(--primary-solid) !important; }
+[data-theme="dark"] .btn-primary { box-shadow: none !important; }
+.btn-secondary { border-width: 1px !important; box-shadow: none !important; }
+.chip-btn, .dm-chip, .region-tab, .toggle-row, .tl-icon { border-width: 1px; box-shadow: none !important; }
+.chip-btn.chip-primary { box-shadow: none; }
+.dm-chip.pick { box-shadow: none; }
+.region-tab.on { background: var(--primary-solid) !important; box-shadow: 0 4px 14px rgba(28, 159, 181, 0.22) !important; }
+.day-tab { border-width: 1px !important; }
+.day-tab.active { box-shadow: none; }
+.pstep-bar { border-width: 1px; }
+.ai-key-notice { border: 1px solid #F6D3C8 !important; }
+.draft-banner.compact { border: 1px solid #F3E3B0 !important; }
+.btn:active { transform: scale(0.98); }
+#bottom-nav { border-radius: 20px 20px 0 0; }
+@media (min-width: 700px) and (min-height: 600px) {
+  #bottom-nav { border-width: 1px; box-shadow: 0 10px 30px rgba(30, 25, 40, 0.12); }
+  #bottom-nav .nav-item .nav-label { font-size: 15px; }
+}
+.dm-land.main { stroke-width: 1.2; }
