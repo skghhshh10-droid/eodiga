@@ -800,6 +800,23 @@ function homeOrigin() {
 // 핀이 겹치는 곳은 말풍선만 살짝 옮긴다 (지도 단위)
 const HOME_PIN_NUDGE = { gyeongju: [62, -34], busan: [16, 44], couple: [-34, 36] };
 let homeMapPick = null;
+let homePage = 1; // 1: 이달의 추천(지도), 2: 지난 추천
+
+// 추천 묶음: 최신 달 묶음이 1페이지, 나머지(+처음 기본 추천)는 2페이지
+function recoBatches() {
+  const monthly = (window.MONTHLY_RECOS || [])
+    .filter(b => b && b.month && Array.isArray(b.templates) && b.templates.length)
+    .slice().sort((a, b) => String(b.month).localeCompare(String(a.month)));
+  const base = { month: "", label: "처음 추천", templates: Object.values(window.PREDEFINED_TEMPLATES || {}) };
+  if (!monthly.length) return { current: Object.assign({ label: "추천 코스" }, base), past: [] };
+  const label = b => `${Number(b.month.slice(5, 7))}월 추천${b.month.slice(0, 4) !== String(new Date().getFullYear()) ? ` (${b.month.slice(0, 4)})` : ""}`;
+  const withLabel = monthly.map(b => Object.assign({ label: label(b) }, b));
+  return { current: withLabel[0], past: withLabel.slice(1).concat(base) };
+}
+function tplTheme(t) {
+  const th = t && t.theme;
+  return th && th.c1 && th.c2 ? { c1: th.c1, c2: th.c2, emoji: th.emoji || "✈️" } : destTheme(t && t.destination);
+}
 
 function homeMapXY(lat, lng) {
   return [(lng - HOME_MAP.lng0) * HOME_MAP.kx, (HOME_MAP.lat1 - lat) * HOME_MAP.ky];
@@ -819,7 +836,7 @@ function templateCardEl(template) {
   card.className = "template-card";
   const styleText = template.style === "active" ? "액티비티" : "힐링";
   const budgetLabel = template.budget === "high" ? "럭셔리" : template.budget === "low" ? "가성비" : "일반";
-  const th = destTheme(template.destination);
+  const th = tplTheme(template);
   card.innerHTML = `
     ${state.seniorMode ? "" : `<div class="tpl-cover" style="--c1:${th.c1};--c2:${th.c2}">
       <span class="tpl-art" aria-hidden="true">${th.emoji}</span>
@@ -840,14 +857,32 @@ function templateCardEl(template) {
 function renderHomeMap(list, matchKeys) {
   const wrap = document.getElementById("dest-map-wrap");
   if (!wrap) return;
+  const HOME_MAP_ORIGIN = homeOrigin();
   const pins = list.map(t => {
     const c = templateCenter(t);
     if (!c) return null;
     const [x, y] = homeMapXY(c.lat, c.lng);
-    const [dx, dy] = HOME_PIN_NUDGE[t.id] || [0, 0];
-    return { t, x, y, bx: x + dx, by: y + dy, th: destTheme(t.destination), on: !matchKeys || matchKeys.has(t.id) };
+    const manual = HOME_PIN_NUDGE[t.id] || (Array.isArray(t.pinNudge) ? t.pinNudge : null);
+    const [dx, dy] = manual || [0, 0];
+    const inside = x > 6 && x < HOME_MAP.W - 6 && y > 6 && y < HOME_MAP.H - 6;
+    return { t, x, y, bx: x + dx, by: y + dy, manual: !!manual, inside, th: tplTheme(t), on: !matchKeys || matchKeys.has(t.id) };
   }).filter(Boolean);
-  const HOME_MAP_ORIGIN = homeOrigin();
+  // 지도 밖 코스는 칩으로만. 핀(말풍선+이름표)이 서로·출발 표시와 겹치지 않게 밀어낸다
+  const shown = pins.filter(p => p.inside);
+  const [ox0, oy0] = homeMapXY(HOME_MAP_ORIGIN.lat, HOME_MAP_ORIGIN.lng);
+  const fixed = [{ bx: ox0, by: oy0 + 10 }]; // 출발 점 + 위쪽 이름표
+  const RX = 64, RY = 86; // 핀 하나가 차지하는 너비·높이(지도 단위)
+  const hits = (x, y, others) => others.some(q => Math.hypot((x - q.bx) / RX, (y - q.by) / RY) < 1);
+  const fits = (x, y) => x >= 28 && x <= HOME_MAP.W - 28 && y >= 84 && y <= HOME_MAP.H - 4;
+  // 실제 위치에서 가까운 빈자리부터: 그대로 → 아래(바다 쪽) → 옆 → 위
+  const SPOTS = [[0, 0], [44, 52], [-44, 52], [70, 10], [-70, 10], [0, 92], [80, 70], [-80, 70], [60, -60], [-60, -60], [0, -90], [110, 30], [-110, 30]];
+  const placed = fixed.slice();
+  shown.forEach(p => {
+    if (p.manual) { placed.push(p); return; }
+    const spot = SPOTS.find(([dx, dy]) => fits(p.x + dx, p.y + dy) && !hits(p.x + dx, p.y + dy, placed)) || [0, 0];
+    p.bx = p.x + spot[0]; p.by = p.y + spot[1];
+    placed.push(p);
+  });
   const [ox, oy] = homeMapXY(HOME_MAP_ORIGIN.lat, HOME_MAP_ORIGIN.lng);
   const arc = (x, y) => {
     const mx = (ox + x) / 2, my = (oy + y) / 2 - Math.min(70, Math.hypot(x - ox, y - oy) * 0.35);
@@ -868,13 +903,13 @@ function renderHomeMap(list, matchKeys) {
         ${Object.entries(HOME_MAP.land).map(([k, d]) => `<path d="${d}" class="dm-land ${k === "KR" || k === "JP" ? "main" : "far"}"/>`).join("")}
         <text x="${(W * 0.27).toFixed(0)}" y="${(H * 0.86).toFixed(0)}" class="dm-sea-name">남해</text>
         <text x="${(W * 0.56).toFixed(0)}" y="${(H * 0.42).toFixed(0)}" class="dm-sea-name">동해</text>
-        ${pins.map(p => `<path d="${arc(p.x, p.y)}" class="dm-route ${p.on ? "" : "off"} ${homeMapPick === p.t.id ? "pick" : ""}"/>`).join("")}
-        ${pins.map(p => (p.bx !== p.x || p.by !== p.y) ? `<line x1="${p.x.toFixed(0)}" y1="${p.y.toFixed(0)}" x2="${p.bx.toFixed(0)}" y2="${p.by.toFixed(0)}" class="dm-leader"/>` : "").join("")}
-        ${pins.map(p => `<circle cx="${p.x.toFixed(0)}" cy="${p.y.toFixed(0)}" r="4" class="dm-dot ${p.on ? "" : "off"}"/>`).join("")}
+        ${shown.map(p => `<path d="${arc(p.x, p.y)}" class="dm-route ${p.on ? "" : "off"} ${homeMapPick === p.t.id ? "pick" : ""}"/>`).join("")}
+        ${shown.map(p => (Math.abs(p.bx - p.x) > 1 || Math.abs(p.by - p.y) > 1) ? `<line x1="${p.x.toFixed(0)}" y1="${p.y.toFixed(0)}" x2="${p.bx.toFixed(0)}" y2="${p.by.toFixed(0)}" class="dm-leader"/>` : "").join("")}
+        ${shown.map(p => `<circle cx="${p.x.toFixed(0)}" cy="${p.y.toFixed(0)}" r="4" class="dm-dot ${p.on ? "" : "off"}"/>`).join("")}
         <circle cx="${ox.toFixed(0)}" cy="${oy.toFixed(0)}" r="6" class="dm-origin"/>
       </svg>
       <span class="dm-origin-label" style="left:${pct(ox, W)};top:${pct(oy, H)}">${HOME_MAP_ORIGIN.name} 출발</span>
-      ${pins.map(p => `
+      ${shown.map(p => `
         <button type="button" class="dm-pin ${p.on ? "" : "off"} ${homeMapPick === p.t.id ? "pick" : ""}" data-tpl="${esc(p.t.id)}"
           style="left:${pct(p.bx, W)};top:${pct(p.by, H)};--c1:${p.th.c1};--c2:${p.th.c2}"
           aria-label="${esc(p.t.destination)} 코스 보기">
@@ -894,6 +929,29 @@ function renderHomeMap(list, matchKeys) {
   if (chip) chip.parentElement.scrollTo({ left: chip.offsetLeft - 8, behavior: "smooth" });
 }
 
+function renderHomeTabs(batches) {
+  const tabs = document.getElementById("home-tabs");
+  const title = document.getElementById("home-section-title");
+  if (title) title.textContent = homePage === 2 ? "지난 추천" : (batches.current.label === "추천 코스" ? "지도에서 골라 보기" : batches.current.label);
+  const sub = document.getElementById("home-section-sub");
+  if (sub) sub.textContent = homePage === 2 ? "예전에 나왔던 코스도 그대로 열 수 있어요" : (batches.current.headline || "핀을 누르면 그곳 코스가 나와요");
+  if (!tabs) return;
+  if (!batches.past.length) { tabs.innerHTML = ""; tabs.hidden = true; homePage = 1; return; }
+  tabs.hidden = false;
+  const pastCount = batches.past.reduce((n, b) => n + b.templates.length, 0);
+  tabs.innerHTML = `
+    <button type="button" class="home-tab ${homePage === 1 ? "on" : ""}" data-page="1">1 · ${esc(batches.current.label)}</button>
+    <button type="button" class="home-tab ${homePage === 2 ? "on" : ""}" data-page="2">2 · 지난 추천 <span class="home-tab-n">${pastCount}</span></button>`;
+  tabs.querySelectorAll("[data-page]").forEach(b => b.addEventListener("click", () => {
+    homePage = Number(b.dataset.page);
+    renderTemplates();
+  }));
+}
+
+function matchesQuery(t, query) {
+  return !query || [t.destination, t.title, t.description].some(v => String(v || "").toLowerCase().includes(query));
+}
+
 function renderTemplates() {
   const container = document.getElementById("templates-container");
   if (!container) return;
@@ -902,11 +960,33 @@ function renderTemplates() {
 
   const searchInput = document.getElementById("explore-search-input");
   const query = searchInput ? searchInput.value.trim().toLowerCase() : "";
-  const all = Object.values(window.PREDEFINED_TEMPLATES);
-  const matches = all.filter(t => !query ||
-    [t.destination, t.title, t.description].some(v => String(v || "").toLowerCase().includes(query)));
-  const matchKeys = query ? new Set(matches.map(t => t.id)) : null;
+  const batches = recoBatches();
+  if (!batches.past.length) homePage = 1;
+  renderHomeTabs(batches);
+  const mapWrap = document.getElementById("dest-map-wrap");
 
+  if (homePage === 2) {
+    if (mapWrap) mapWrap.innerHTML = "";
+    container.classList.remove("single");
+    container.classList.add("past-list");
+    let n = 0;
+    batches.past.forEach(b => {
+      const list = b.templates.filter(t => matchesQuery(t, query));
+      if (!list.length) return;
+      const h = document.createElement("h3");
+      h.className = "past-month";
+      h.textContent = b.label;
+      container.appendChild(h);
+      list.forEach(t => { container.appendChild(templateCardEl(t)); n++; });
+    });
+    if (!n) renderNoResult(container, query, searchInput);
+    return;
+  }
+  container.classList.remove("past-list");
+
+  const all = batches.current.templates;
+  const matches = all.filter(t => matchesQuery(t, query));
+  const matchKeys = query ? new Set(matches.map(t => t.id)) : null;
   if (matches.length && !matches.some(t => t.id === homeMapPick)) homeMapPick = matches[0].id;
   renderHomeMap(all, matchKeys);
 
@@ -915,16 +995,22 @@ function renderTemplates() {
     container.appendChild(templateCardEl(pick));
     return;
   }
+  const inPast = query && batches.past.some(b => b.templates.some(t => matchesQuery(t, query)));
+  renderNoResult(container, query, searchInput, inPast);
+}
 
+function renderNoResult(container, query, searchInput, inPast) {
   const noResult = document.createElement("div");
   noResult.className = "no-search-results";
   noResult.innerHTML = `
     <div class="no-results-icon">${window.icon("search", 32)}</div>
-    <p>"<strong>${esc(query)}</strong>"에 맞는 추천 코스가 지도에 없어요.</p>
-    <span>AI 플래너에서 바로 일정을 만들어 보세요!</span>
+    <p>"<strong>${esc(query)}</strong>"에 맞는 추천 코스가 여기엔 없어요.</p>
+    ${inPast ? `<button class="btn btn-sm btn-secondary" style="margin-top:10px" id="btn-search-past">지난 추천에서 보기</button>` : `<span>AI 플래너에서 바로 일정을 만들어 보세요!</span>`}
     <button class="btn btn-sm btn-primary" style="margin-top:12px" id="btn-explore-to-planner">"${esc(query)}" AI로 일정 만들기</button>
   `;
   container.appendChild(noResult);
+  const past = document.getElementById("btn-search-past");
+  if (past) past.addEventListener("click", () => { homePage = 2; renderTemplates(); });
   const go = document.getElementById("btn-explore-to-planner");
   if (go) go.addEventListener("click", () => {
     document.getElementById("input-destination").value = searchInput.value.trim();
@@ -2339,7 +2425,7 @@ function formatMinutes(m) {
 
 
 
-const APP_VERSION = "v46";
+const APP_VERSION = "v47";
 
 // --- 목적지별 표지 색·그림 (사진 대신 저작권 걱정 없는 색과 이모지) ---
 const DEST_THEMES = [
