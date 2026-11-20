@@ -9,9 +9,10 @@
   --text-color: #0f172a;
   --text-muted: #64748b;
   --border-color: rgba(0, 0, 0, 0.08);
-  --primary-gradient: linear-gradient(135deg, #4f46e5 0%, #8b5cf6 100%);
-  --primary-solid: #4f46e5;
-  --primary-light: rgba(79, 70, 229, 0.1);
+  --primary-gradient: linear-gradient(135deg, #00A3C4 0%, #007E9C 100%);
+  --primary-solid: #007E9C;
+  --primary-light: rgba(0, 163, 196, 0.12);
+  --accent-sun: #FFB547;
   --accent-color: #059669;
   --accent-light: rgba(5, 150, 105, 0.1);
   --danger-color: #dc2626;
@@ -43,9 +44,10 @@
   --text-color: #f1f5f9;
   --text-muted: #94a3b8;
   --border-color: rgba(255, 255, 255, 0.08);
-  --primary-gradient: linear-gradient(135deg, #6366f1 0%, #a855f7 100%);
-  --primary-solid: #6366f1;
-  --primary-light: rgba(99, 102, 241, 0.15);
+  --primary-gradient: linear-gradient(135deg, #12B3D3 0%, #0A8FAE 100%);
+  --primary-solid: #22BBDA;
+  --primary-light: rgba(34, 187, 218, 0.16);
+  --accent-sun: #FFB547;
   --accent-color: #10b981;
   --accent-light: rgba(16, 185, 129, 0.15);
   --danger-color: #ef4444;
@@ -104,7 +106,7 @@ body {
 }
 
 .bg-glow-2 {
-  background: #a855f7;
+  background: #0A8FAE;
   bottom: -10%;
   right: -10%;
   animation-delay: -5s;
@@ -427,7 +429,7 @@ body {
 .badge-primary {
   background-color: var(--primary-light);
   color: var(--primary-solid);
-  border: 1px solid rgba(99, 102, 241, 0.3);
+  border: 1px solid rgba(0, 163, 196, 0.3);
 }
 
 .badge-success {
@@ -624,12 +626,12 @@ body {
 .btn-primary {
   background: var(--primary-gradient);
   color: #ffffff;
-  box-shadow: 0 4px 12px rgba(99, 102, 241, 0.3);
+  box-shadow: 0 4px 12px rgba(0, 163, 196, 0.3);
 }
 
 .btn-primary:hover {
   opacity: 0.95;
-  box-shadow: 0 4px 16px rgba(99, 102, 241, 0.4);
+  box-shadow: 0 4px 16px rgba(0, 163, 196, 0.4);
 }
 
 .btn-secondary {
@@ -964,7 +966,7 @@ body {
 .add-place-trigger {
   background-color: var(--primary-light);
   color: var(--primary-solid);
-  border: 1px dashed rgba(99, 102, 241, 0.4);
+  border: 1px dashed rgba(0, 163, 196, 0.4);
   border-radius: var(--radius-sm);
   padding: 10px;
   font-size: 12px;
@@ -976,7 +978,7 @@ body {
 }
 
 .add-place-trigger:hover {
-  background-color: rgba(99, 102, 241, 0.22);
+  background-color: rgba(0, 163, 196, 0.22);
 }
 
 .add-place-drawer {
@@ -1140,7 +1142,7 @@ body {
 }
 
 .btn-ota:hover {
-  color: #8b5cf6;
+  color: #007E9C;
 }
 
 .timeline-item[data-cat="hotel"] .btn-ota {
@@ -1785,7 +1787,7 @@ body {
   line-height: 1.4;
   padding: 10px;
   border-radius: var(--radius-sm);
-  border: 1px solid rgba(99, 102, 241, 0.2);
+  border: 1px solid rgba(0, 163, 196, 0.2);
   margin-bottom: 18px;
   text-align: left;
 }
@@ -1835,7 +1837,7 @@ body {
   background: var(--primary-gradient);
   color: #ffffff;
   border-color: transparent;
-  box-shadow: 0 4px 10px rgba(99, 102, 241, 0.3);
+  box-shadow: 0 4px 10px rgba(0, 163, 196, 0.3);
 }
 
 /* Header adapts to senior mode height requirements */
@@ -2347,7 +2349,7 @@ body {
 }
 
 .senior-modal-desc {
-  background-color: rgba(99, 102, 241, 0.05);
+  background-color: rgba(0, 163, 196, 0.05);
   border: 1px dashed var(--primary-solid);
   padding: 16px;
   border-radius: var(--radius-sm);
@@ -2385,7 +2387,7 @@ body {
 }
 
 .senior-mode .timeline-item:hover {
-  background-color: rgba(99, 102, 241, 0.04) !important;
+  background-color: rgba(0, 163, 196, 0.04) !important;
 }
 
 /* Extra Large Font Styles inside Senior Modal */
@@ -2703,7 +2705,7 @@ body {
 }
 
 [data-theme="dark"] .budget-summary-bar .budget-amount {
-  color: #a5b4fc;
+  color: #67D8EE;
 }
 
 /* Place Price Badge on Timeline card */
@@ -2712,7 +2714,7 @@ body {
   font-weight: 600;
   padding: 2px 6px;
   border-radius: 4px;
-  background-color: rgba(99, 102, 241, 0.08);
+  background-color: rgba(0, 163, 196, 0.08);
   color: var(--primary-solid);
   margin-left: auto;
   white-space: nowrap;
@@ -2724,8 +2726,8 @@ body {
 }
 
 [data-theme="dark"] .place-price-tag {
-  background-color: rgba(165, 180, 252, 0.15);
-  color: #a5b4fc;
+  background-color: rgba(103, 216, 238, 0.15);
+  color: #67D8EE;
 }
 
 [data-theme="dark"] .place-price-tag.free {
@@ -2868,7 +2870,7 @@ body {
   align-items: center;
   justify-content: center;
   color: #ffffff;
-  box-shadow: 0 10px 25px rgba(99, 102, 241, 0.4);
+  box-shadow: 0 10px 25px rgba(0, 163, 196, 0.4);
   animation: check-pop 0.6s cubic-bezier(0.175, 0.885, 0.32, 1.275);
 }
 
@@ -2895,7 +2897,7 @@ body {
 }
 
 [data-theme="dark"] .confirm-status-msg {
-  color: #a5b4fc;
+  color: #67D8EE;
 }
 
 .confirm-sub-msg {
@@ -3043,7 +3045,7 @@ body {
 }
 
 .btn-collab-invite:hover {
-  background-color: rgba(99, 102, 241, 0.15);
+  background-color: rgba(0, 163, 196, 0.15);
 }
 
 /* --- Collaborator Modal --- */
@@ -3266,8 +3268,8 @@ body {
 }
 
 [data-theme="dark"] .comment-bubble.me {
-  background-color: rgba(99, 102, 241, 0.2);
-  color: #a5b4fc;
+  background-color: rgba(0, 163, 196, 0.2);
+  color: #67D8EE;
 }
 
 .comment-bubble.other {
@@ -3290,7 +3292,7 @@ body {
 }
 
 [data-theme="dark"] .comment-bubble.me .comment-author {
-  color: #a5b4fc;
+  color: #67D8EE;
 }
 
 .comment-text {
