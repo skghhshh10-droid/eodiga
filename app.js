@@ -1,4 +1,4 @@
-// Routy - 개인용 AI 여행 플래너 (Core Controller & SPA Engine)
+// 어디가 (구 Routy) - 개인용 AI 여행 플래너 (Core Controller & SPA Engine)
 
 // --- Global Application State ---
 const state = {
@@ -711,7 +711,7 @@ function setupSettings() {
       renderSettingsTab();
       showToast(`불러오기 완료: 새 일정 ${added}개, 갱신 ${updated}개`);
     } catch (e) {
-      showToast("백업 파일을 읽지 못했습니다. Routy 백업 파일인지 확인해 주세요.", 4000);
+      showToast("백업 파일을 읽지 못했습니다. 어디가(Routy) 백업 파일인지 확인해 주세요.", 4000);
     }
   });
 
@@ -2222,7 +2222,7 @@ function formatMinutes(m) {
 
 
 
-const APP_VERSION = "v42";
+const APP_VERSION = "v43";
 
 // --- 식성: 매운 음식·못 먹는 음식 ---
 const SPICY_RE = /개미집|낙곱새|엽기|배떡|청년다방|불타는|홍짜장|교동짬뽕|마라|훠궈|떡볶이|엽떡|짬뽕|닭발|쭈꾸미|주꾸미|낙지|매운|불닭|아구찜|아귀찜|해물찜|닭갈비|찜닭|김치찜|김치찌개|부대찌개|육개장|감자탕|탄탄|쓰촨|사천|똠얌|커리|카레|태국 음식|인도 음식|麻辣|火锅|辣|spicy|sichuan|szechuan|hot ?pot|curry|thai|indian/i;
@@ -4855,7 +4855,7 @@ async function renderNaver(seq) {
     naverMarkers[place.id] = { marker, place, index, pos };
   });
   if (path.length > 1) {
-    naverLine = new nm.Polyline({ map: naverMap, path, strokeColor: "#6366f1", strokeWeight: 3, strokeOpacity: 0.8, strokeStyle: "shortdash" });
+    naverLine = new nm.Polyline({ map: naverMap, path, strokeColor: "#00A3C4", strokeWeight: 3, strokeOpacity: 0.8, strokeStyle: "shortdash" });
     const bounds = new nm.LatLngBounds(path[0], path[0]);
     path.forEach(p => bounds.extend(p));
     naverMap.fitBounds(bounds, { top: 40, right: 40, bottom: 40, left: 40 });
@@ -4920,7 +4920,7 @@ async function renderKakao(seq) {
     kakaoItems[place.id] = { overlay, place, index, pos };
   });
   if (path.length > 1) {
-    kakaoRouteLine = new km.Polyline({ path, strokeWeight: 3, strokeColor: "#6366f1", strokeOpacity: 0.8, strokeStyle: "shortdash" });
+    kakaoRouteLine = new km.Polyline({ path, strokeWeight: 3, strokeColor: "#00A3C4", strokeOpacity: 0.8, strokeStyle: "shortdash" });
     kakaoRouteLine.setMap(kakaoMap);
     kakaoMap.setBounds(bounds, 40, 40, 40, 40);
   } else {
@@ -4982,7 +4982,7 @@ function addOfmRouteLayer(map) {
     type: "line",
     source: "routy-route",
     layout: { "line-join": "round", "line-cap": "round" },
-    paint: { "line-color": "#6366f1", "line-width": 3, "line-opacity": 0.85, "line-dasharray": [1.5, 2] }
+    paint: { "line-color": "#00A3C4", "line-width": 3, "line-opacity": 0.85, "line-dasharray": [1.5, 2] }
   });
 }
 
@@ -5109,7 +5109,7 @@ function updateLeafletMarkers() {
     // Draw connecting route line
     if (coordinates.length > 1) {
       mapRouteLine = L.polyline(coordinates, {
-        color: '#6366f1',
+        color: '#00A3C4',
         weight: 3,
         opacity: 0.8,
         dashArray: '5, 8',
@@ -5510,7 +5510,7 @@ function openPdfPreview() {
 
   let html = `
     <div style="font-family: sans-serif; padding: 20px; line-height: 1.6; color: #1e293b;">
-      <h2 style="margin-top: 0; color: #4f46e5; border-bottom: 2px solid #e2e8f0; padding-bottom: 10px;">${esc(state.activeTrip.title)}</h2>
+      <h2 style="margin-top: 0; color: #007E9C; border-bottom: 2px solid #e2e8f0; padding-bottom: 10px;">${esc(state.activeTrip.title)}</h2>
       <div style="margin-bottom: 20px; background: #f8fafc; padding: 12px; border-radius: 8px; font-size: 14px;">
         <p style="margin: 4px 0;"><strong>목적지:</strong> ${esc(state.activeTrip.destination || '미정')}</p>
         <p style="margin: 4px 0;"><strong>여행 기간:</strong> ${state.activeTrip.days}일</p>
@@ -5537,7 +5537,7 @@ function openPdfPreview() {
         html += `
           <li style="margin-bottom: 12px;">
             <strong style="font-size: 16px;">[${esc(place.time)}] ${esc(place.name)}</strong> 
-            <span style="font-size: 12px; background: #e0e7ff; color: #4f46e5; padding: 2px 6px; border-radius: 4px; margin-left: 6px;">${catText}</span>
+            <span style="font-size: 12px; background: #E6F9FD; color: #007E9C; padding: 2px 6px; border-radius: 4px; margin-left: 6px;">${catText}</span>
             ${place.price ? `<span style="font-size: 13px; color: #b45309; font-weight: bold; margin-left: 8px;">${placePriceLabel(place, state.activeTrip)}</span>` : ''}
             ${place.description ? `<p style="margin: 4px 0 0 0; font-size: 13px; color: #475569;">${esc(place.description)}</p>` : ''}
           </li>
@@ -5566,7 +5566,7 @@ async function shareItinerary() {
   const title = state.activeTrip.title;
   if (navigator.share && /Mobi|Android|iPhone|iPad/i.test(navigator.userAgent)) {
     try {
-      await navigator.share({ title: `[Routy] ${title}`, text: `${title} 여행 일정`, url });
+      await navigator.share({ title: `[어디가] ${title}`, text: `${title} 여행 일정`, url });
       return;
     } catch (e) {
       if (e.name === "AbortError") return;
@@ -5795,7 +5795,7 @@ function downloadOfflineTxt() {
   if (!state.activeTrip) return;
   
   let txt = `=========================================\r\n`;
-  txt += `       [Routy] ${state.activeTrip.title} 여행 일정 요약\r\n`;
+  txt += `       [어디가] ${state.activeTrip.title} 여행 일정 요약\r\n`;
   txt += `=========================================\r\n\r\n`;
   txt += `목적지: ${state.activeTrip.destination || '미정'}\r\n`;
   txt += `여행 기간: ${state.activeTrip.days}일\r\n`;
@@ -5828,7 +5828,7 @@ function downloadOfflineTxt() {
   
   txt += `=========================================\r\n`;
   txt += `다운로드 시간: ${new Date().toLocaleString()}\r\n`;
-  txt += `Routy와 함께 안전하고 즐거운 여행 되세요!\r\n`;
+  txt += `어디가와 함께 안전하고 즐거운 여행 되세요!\r\n`;
   
   const blob = new Blob([txt], { type: "text/plain;charset=utf-8" });
   const url = URL.createObjectURL(blob);
