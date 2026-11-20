@@ -582,7 +582,7 @@ input, select, textarea {
   /* 일정: 목록 | 지도 */
   .itinerary-split-container { flex-direction: row-reverse; }
   #map-wrapper { height: 100% !important; width: auto; flex: 1; min-height: 0; border-bottom: none; border-left: 1px solid var(--border-color); }
-  .itinerary-details-wrapper { flex: 0 0 min(460px, 45%); padding: 16px 20px 0; }
+  .itinerary-details-wrapper { flex: 0 0 min(560px, 52%); padding: 16px 20px 0; }
   .day-tabs-sticky { margin: 10px -20px 6px; padding: 8px 20px 4px; }
   .ai-refine-box { margin: 0 -20px; padding: 10px 20px; }
 
@@ -1091,3 +1091,42 @@ input[type="time"]::-webkit-calendar-picker-indicator { margin-left: auto; }
 .tpl-days { position: relative; z-index: 1; align-self: flex-start; margin-top: 4px; font-size: 11px; font-weight: 800; background: rgba(255,255,255,0.25); padding: 2px 8px; border-radius: 999px; }
 .template-card:has(.tpl-cover) .template-meta-geo { display: none; }
 .template-card:has(.tpl-cover):hover { transform: translateY(-3px); box-shadow: 0 10px 24px rgba(0, 0, 0, 0.08); }
+
+/* ---------- 탑승권 모양 티켓 ---------- */
+.tickets { display: flex; flex-direction: column; gap: 10px; margin-bottom: 10px; }
+.ticket {
+  position: relative; display: grid; grid-template-columns: minmax(0, 1fr); overflow: hidden;
+  border-radius: 16px; background: var(--card-bg-solid); border: 1px solid var(--border-color);
+  box-shadow: 0 2px 10px rgba(15, 23, 42, 0.05);
+}
+.tk-main { padding: 12px 16px 10px; background: linear-gradient(135deg, var(--primary-light), transparent 70%); }
+.tk-label { font-size: 11px; font-weight: 800; color: var(--primary-solid); letter-spacing: 0.02em; margin-bottom: 4px; }
+.tk-route { display: grid; grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr); align-items: center; gap: 8px; }
+.tk-end b { display: block; font-size: 26px; font-weight: 900; letter-spacing: 0.02em; line-height: 1.05; }
+.tk-end small { display: block; font-size: 11px; color: var(--text-muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.tk-end.right { text-align: right; }
+.tk-mid { display: flex; align-items: center; justify-content: center; min-width: 56px; position: relative; color: var(--primary-solid); font-size: 18px; }
+.tk-mid::before { content: ""; position: absolute; left: 0; right: 0; top: 50%; border-top: 2px dashed var(--border-color); }
+.tk-mid span { position: relative; background: var(--card-bg-solid); padding: 0 6px; border-radius: 999px; }
+.tk-hotel { display: flex; align-items: center; gap: 8px; } .tk-hotel span { font-size: 22px; } .tk-hotel b { font-size: 18px; font-weight: 800; }
+.tk-stub {
+  position: relative; display: grid; grid-template-columns: repeat(auto-fit, minmax(64px, 1fr)); gap: 6px;
+  padding: 10px 16px 12px; border-top: 2px dashed var(--border-color);
+}
+.tk-stub::before, .tk-stub::after { content: ""; position: absolute; top: -9px; width: 16px; height: 16px; border-radius: 50%; background: var(--bg-color, #f1f5f9); }
+.tk-stub::before { left: -9px; } .tk-stub::after { right: -9px; }
+.tk-stub small { display: block; font-size: 10px; color: var(--text-muted); font-weight: 700; }
+.tk-stub b { font-size: 14px; font-weight: 800; font-variant-numeric: tabular-nums; }
+.tk-stamp {
+  position: absolute; right: 12px; top: 10px; transform: rotate(-12deg);
+  border: 2px solid #E8684A; color: #E8684A; border-radius: 8px; padding: 2px 8px;
+  font-size: 12px; font-weight: 900; letter-spacing: 0.05em; opacity: 0.85; background: rgba(255,255,255,0.6);
+}
+.ticket.booked .tk-label { color: #E8684A; }
+[data-theme="dark"] .tk-stamp { background: rgba(15,23,42,0.6); }
+/* 예매·숙소 패널은 일정표 칸 들여쓰기 없이 넓게 */
+.tl2-wrap > .stay-panel, .tl2-wrap > .flight-panel { margin-left: 0; max-width: 100%; }
+.ticket .tk-end b { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.ticket:not(:has(.tk-hotel)) .tk-end b { font-size: clamp(18px, 5vw, 26px); }
+.tl2-wrap > .stay-panel, .tl2-wrap > .flight-panel, .tl2-wrap > .move-connector.rail-block { position: relative; z-index: 2; background-color: var(--card-bg-solid); background-image: linear-gradient(var(--primary-light), var(--primary-light)); }
+.tl2-wrap > .day-summary-line { position: relative; z-index: 2; background: var(--card-bg-solid); }

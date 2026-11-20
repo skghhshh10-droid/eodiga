@@ -2487,7 +2487,8 @@ function stayPanelHtml(place) {
   const links = stayLinks(place, info);
   return `
     <div class="stay-panel">
-      <div class="stay-head"><strong>${when} · ${info.people}명${info.rooms > 1 ? ` · 객실 ${info.rooms}개` : ""}</strong><span>${est}</span></div>
+      <div class="tickets">${ticketHtml({ kind: "hotel", label: `${info.nights}박${info.rooms > 1 ? ` · 객실 ${info.rooms}개` : ""}`, fromCode: "", toCode: "", fromName: place.name, toName: "", date: info.checkin, dep: info.checkout ? `${info.checkout.getMonth() + 1}/${info.checkout.getDate()}` : "", arr: `${info.people}명` })}</div>
+      ${est ? `<div class="stay-hint">${est.replace(/^ · /, "")}</div>` : ""}
       ${info.checkin ? "" : `<div class="stay-hint warn">여행 시작일이 없어 날짜 없이 열려요. 위쪽 날짜 칸에서 출발일을 정하면 체크인·체크아웃까지 채워져요.</div>`}
       <div class="stay-links">
         ${links.map(l => `<button class="stay-link ${l.main ? "main" : ""}" data-action="staysite" data-site="${l.key}" data-id="${id}"><b>${esc(l.label)}</b><small>${esc(l.sub)}</small></button>`).join("")}
@@ -2579,7 +2580,10 @@ function railBlockHtml(trip, day) {
       ${modeBtns}
       <div class="stay-links">${sites.map(x => `<button class="stay-link" data-action="railsite" data-day="${day}" data-site="${x.k}"><b>${x.label}</b><small>${x.sub}</small></button>`).join("")}</div>
       ${ic && isOut ? localModeHtml(trip) : ""}
-      ${ic ? `${ic.times && (ic.times.out.arr || (ic.times.ret && ic.times.ret.dep)) ? `<div class="ff-booked">${ic.times.out.arr ? `<div>🎫 가는 편 ${ic.times.out.no ? `<b>${esc(ic.times.out.no)}</b> ` : ""}${esc(ic.from)} ${esc(ic.times.out.dep || "?")} → ${esc(ic.stop)} ${esc(ic.times.out.arr)}</div>` : ""}${ic.times.ret && ic.times.ret.dep ? `<div>🎫 오는 편 ${ic.times.ret.no ? `<b>${esc(ic.times.ret.no)}</b> ` : ""}${esc(ic.stop)} ${esc(ic.times.ret.dep)} → ${esc(ic.from)} ${esc(ic.times.ret.arr || "?")}</div>` : ""}</div>` : ""}
+      ${ic ? `<div class="tickets">
+        ${ticketHtml({ kind: ic.mode, label: `가는 ${ic.service}`, fromCode: ic.from.replace(/역|고속버스터미널|터미널|\(.*\)/g, "").slice(0, 5), toCode: ic.stop.replace(/역|고속버스터미널|종합버스터미널|터미널|\(.*\)/g, "").slice(0, 5), fromName: ic.from, toName: ic.stop, date: getTripDate(trip, 1), dep: ic.times && ic.times.out.dep, arr: ic.times && ic.times.out.arr, no: ic.times && ic.times.out.no })}
+        ${trip.places.some(p => p.intercity === "back") ? ticketHtml({ kind: ic.mode, label: `오는 ${ic.service}`, fromCode: ic.stop.replace(/역|고속버스터미널|종합버스터미널|터미널|\(.*\)/g, "").slice(0, 5), toCode: ic.from.replace(/역|고속버스터미널|터미널|\(.*\)/g, "").slice(0, 5), fromName: ic.stop, toName: ic.from, date: getTripDate(trip, trip.days || 1), dep: ic.times && ic.times.ret && ic.times.ret.dep, arr: ic.times && ic.times.ret && ic.times.ret.arr, no: ic.times && ic.times.ret && ic.times.ret.no }) : ""}
+      </div>
       <button class="btn btn-sm ff-open" data-action="groundfit" data-day="${day}">${window.icon("calendar", 16)}${ic.times ? "예매 시간 고치기" : "예매 시간 넣고 일정 맞추기"}</button>` : ""}
       <div class="stay-hint">${ic ? "" : "수단을 고르면 타는 곳·내리는 곳에 맞춰 첫날 시작과 마지막 날 끝이 바뀌어요. "}예매 사이트는 역·날짜를 미리 채울 수 없어서, 누르면 '${when} ${esc(icFrom)} → ${esc(icTo)}'를 복사해 두고 안내해요.</div>
     </div>` : ""}`;
@@ -3081,6 +3085,32 @@ async function applyWake(time, all) {
   }
 }
 
+
+// --- 탑승권 모양 티켓 (항공·기차·버스·숙소) ---
+function ticketHtml(o) {
+  const icon = { flight: "✈", train: "🚄", express: "🚌", bus: "🚌", hotel: "🏨" }[o.kind] || "✈";
+  const d = o.date ? `${o.date.getMonth() + 1}/${o.date.getDate()}(${WEEKDAYS[o.date.getDay()]})` : "날짜 미정";
+  const booked = o.kind !== "hotel" && !!(o.dep || o.arr);
+  return `
+    <div class="ticket ${booked ? "booked" : ""}">
+      <div class="tk-main">
+        <div class="tk-label">${esc(o.label || "")}</div>
+        ${o.kind === "hotel" ? `<div class="tk-hotel"><span>${icon}</span><b>${esc(o.fromName || "")}</b></div>` : `<div class="tk-route">
+          <div class="tk-end"><b>${esc(o.fromCode || "")}</b><small>${esc(o.fromName || "")}</small></div>
+          <div class="tk-mid"><span>${icon}</span></div>
+          <div class="tk-end right"><b>${esc(o.toCode || "")}</b><small>${esc(o.toName || "")}</small></div>
+        </div>`}
+      </div>
+      <div class="tk-stub">
+        <div><small>${o.kind === "hotel" ? "체크인" : "날짜"}</small><b>${d}</b></div>
+        <div><small>${o.kind === "hotel" ? "체크아웃" : "출발"}</small><b>${esc(o.dep || "--:--")}</b></div>
+        <div><small>${o.kind === "hotel" ? "인원" : "도착"}</small><b>${esc(o.arr || "--:--")}</b></div>
+        ${o.no ? `<div><small>${o.kind === "flight" ? "편명" : "번호"}</small><b>${esc(o.no)}</b></div>` : ""}
+      </div>
+      ${booked && o.kind !== "hotel" ? `<span class="tk-stamp">예매 완료</span>` : ""}
+    </div>`;
+}
+
 // --- 항공권: 날짜·인원·구간을 채운 검색 화면 열기 ---
 const expandedFlights = new Set();
 const AIRPORT_CODES = {
@@ -3230,9 +3260,17 @@ function flightPanelHtml(ft, id) {
   const { out, ret, people } = ft;
   const d = x => x.date ? `${x.date.getMonth() + 1}/${x.date.getDate()}` : "날짜 미정";
   const head = `${ret ? "왕복" : "편도"} · 가는 날 ${d(out)}${ret ? ` · 오는 날 ${d(ret)}` : ""} · ${people}명`;
+  const fl = (state.activeTrip && state.activeTrip.flights) || {};
+  const fo = fl.out && fl.out.from === out.from ? fl.out : {};
+  const fr = fl.ret && ret && fl.ret.from === ret.from ? fl.ret : {};
+  const nm = c => (AIRPORT_NAMES[c] || "").replace(/\(.*\)/, "");
   return `
       <div class="stay-panel flight-panel">
-        <div class="stay-head"><strong>${out.from} → ${out.to}${ret ? ` → ${ret.to}` : ""}</strong><span>${head}</span></div>
+        <div class="stay-head"><span>${head}</span></div>
+        <div class="tickets">
+          ${ticketHtml({ kind: "flight", label: "가는 편", fromCode: out.from, toCode: out.to, fromName: nm(out.from), toName: nm(out.to), date: out.date, dep: fo.dep, arr: fo.arr, no: fo.no })}
+          ${ret ? ticketHtml({ kind: "flight", label: "오는 편", fromCode: ret.from, toCode: ret.to, fromName: nm(ret.from), toName: nm(ret.to), date: ret.date, dep: fr.dep, arr: fr.arr, no: fr.no }) : ""}
+        </div>
         ${ft.guessed ? `<div class="stay-hint">출발 도시와 여행 날짜로 첫날 가는 편·마지막 날 오는 편을 잡았어요. 공항이 다르면 사이트에서 바꿔 주세요.</div>` : ""}
         ${out.date ? "" : `<div class="stay-hint warn">여행 시작일이 없어 날짜 없이 열려요. 위쪽 날짜 칸에서 출발일을 정하면 날짜까지 채워져요.</div>`}
         <div class="stay-links">
@@ -3241,7 +3279,6 @@ function flightPanelHtml(ft, id) {
         ${state.activeTrip && state.activeTrip.transport === "rental" ? `<div class="ic-modes local-modes"><span>렌터카 (도착 공항에서 인수)</span></div>
         <div class="stay-links rental-links">${RENTAL_SITES.map(x => `<button class="stay-link" data-action="rentalsite" data-site="${x.k}"><b>${x.label}</b><small>${x.sub}</small></button>`).join("")}</div>
         <div class="stay-hint">렌터카: ${esc(rentalHint(state.activeTrip))}</div>` : ""}
-        ${bookedFlightsHtml(state.activeTrip)}
         <button class="btn btn-sm ff-open" data-action="flightfit" data-id="${id}">${window.icon("calendar", 16)}${state.activeTrip && state.activeTrip.flights ? "항공편 시간 고치기" : "예약한 항공편 시간 넣고 일정 맞추기"}</button>
         <div class="stay-hint">항공권 가격은 사이트에서 실시간으로 확인돼요. 수하물 포함 여부는 항공사마다 달라요.</div>
       </div>`;
