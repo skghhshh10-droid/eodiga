@@ -1886,30 +1886,48 @@ function renderTripMeta() {
     : t.source === "sample" ? `<span class="trip-source-badge sample">샘플</span>`
     : t.source === "shared" ? `<span class="trip-source-badge shared">공유받음</span>`
     : t.source === "template" ? `<span class="trip-source-badge sample">템플릿</span>` : "";
+  const th = destTheme(t.destination || t.title);
+  const end = start && t.days > 1 ? getTripDate(t, t.days) : null;
+  const dateTxt = start ? `${formatShortDate(start)}${end ? ` ~ ${formatShortDate(end)}` : ""} · ${t.days}일` : `날짜 정하기 · ${t.days}일`;
+  const people = parseInt(t.people, 10) || 0;
+  const cost = getTripCost(t);
+  const total = cost.total;
+  const moneyShort = total >= 10000 ? `₩${(Math.round(total / 1000) / 10).toLocaleString("ko-KR")}만` : formatWon(total);
+  const transportEmoji = { car: "🚗", rental: "🚙", taxi: "🚕", walk: "🚶", transit: "🚌", auto: "🧭" }[t.transport || "auto"];
   el.innerHTML = `
-    <div class="trip-meta-line">
-      ${badge}
-      <label class="trip-date-picker meta-item" title="출발일 지정">${window.icon("calendar", 16)}<input type="date" id="trip-start-date-input" value="${esc(t.startDate || "")}" aria-label="출발일"></label>
-      <span class="meta-item">${range}${t.days}일</span>
-      ${t.party ? `<span class="meta-item">${window.icon("users", 16)}${esc(t.party.split(",")[0])}</span>` : ""}
-      <label class="meta-item meta-transport" title="이동 수단">${window.icon(t.transport === "car" || t.transport === "rental" ? "car" : t.transport === "taxi" ? "taxi" : t.transport === "walk" ? "walk" : "bus", 16)}<select id="trip-transport-select" aria-label="이동 수단">
-        ${Object.entries(TRANSPORT_LABELS).map(([k, v]) => `<option value="${k}" ${(t.transport || "auto") === k ? "selected" : ""}>${v}</option>`).join("")}
-      </select></label>
+    <div class="trip-cover" style="--c1:${th.c1};--c2:${th.c2}">
+      <span class="cover-art" aria-hidden="true">${th.emoji}</span>
+      <div class="cover-top">${badge}<span class="cover-kicker">${t.days > 1 ? `${t.days - 1}박 ${t.days}일` : "당일치기"}${t.party ? ` · ${esc(t.party.split(",")[0])}` : ""}</span></div>
+      <div class="cover-dest">${esc((t.destination || t.title || "").replaceAll("/", " · "))}</div>
+      <div class="cover-chips">
+        <label class="cover-chip" title="출발일 지정">📅 <span>${dateTxt}</span><input type="date" id="trip-start-date-input" value="${esc(t.startDate || "")}" aria-label="출발일"></label>
+        ${(people || cost.people) ? `<span class="cover-chip static">👥 <span>${people || cost.people}명</span></span>` : ""}
+        <label class="cover-chip" title="이동 수단">${transportEmoji} <span>${TRANSPORT_LABELS[t.transport || "auto"]}</span><select id="trip-transport-select" aria-label="이동 수단">
+          ${Object.entries(TRANSPORT_LABELS).map(([k, v]) => `<option value="${k}" ${(t.transport || "auto") === k ? "selected" : ""}>${v}</option>`).join("")}
+        </select></label>
+        <button type="button" class="cover-chip" id="cover-budget-chip">💰 <span>${moneyShort}</span></button>
+      </div>
     </div>
     ${t.summary ? `<p class="trip-summary">${esc(t.summary)}</p>` : ""}
     ${!isActiveTripSaved() ? `
-      <div class="draft-banner">
-        <span>${t.source === "shared" ? "공유받은 일정이에요." : t.source === "template" ? "추천 템플릿이에요." : "아직 저장 전인 초안이에요."} 저장하면 내 일정에 추가되고 이후 수정은 자동 저장돼요.</span>
+      <div class="draft-banner compact">
+        <span>${t.source === "shared" ? "공유받은 일정" : t.source === "template" ? "추천 템플릿" : "저장 전 초안"}이에요. 저장하면 내 일정에 추가돼요.</span>
         <div class="draft-actions">
           ${t.genInput && window.RoutyAI.hasApiKey() ? `<button type="button" class="chip-btn" id="btn-regenerate">${window.icon("undo", 16)}다시 만들기</button>` : ""}
-          <button type="button" class="chip-btn chip-primary" id="btn-draft-save">${window.icon("check", 16)}내 일정에 저장</button>
+          <button type="button" class="chip-btn chip-primary" id="btn-draft-save">${window.icon("check", 16)}저장</button>
         </div>
       </div>` : ""}
-    <details class="budget-card" id="budget-card" ${budgetCardOpen ? "open" : ""}>${budgetCardHtml(t)}</details>
+    <details class="budget-card ${budgetCardOpen ? "" : "cover-hidden"}" id="budget-card" ${budgetCardOpen ? "open" : ""}>${budgetCardHtml(t)}</details>
     <div class="verify-status" id="verify-status"></div>
   `;
+  document.getElementById("cover-budget-chip").addEventListener("click", () => {
+    budgetCardOpen = !budgetCardOpen;
+    const bc = document.getElementById("budget-card");
+    bc.open = budgetCardOpen;
+    bc.classList.toggle("cover-hidden", !budgetCardOpen);
+  });
   document.getElementById("btn-edit-budget").addEventListener("click", (e) => { e.preventDefault(); openBudgetModal(); });
-  document.getElementById("budget-card").addEventListener("toggle", (e) => { budgetCardOpen = e.target.open; });
+  document.getElementById("budget-card").addEventListener("toggle", (e) => { budgetCardOpen = e.target.open; e.target.classList.toggle("cover-hidden", !e.target.open); });
   document.getElementById("trip-transport-select").addEventListener("change", (e) => changeTripTransport(e.target.value));
   const regen = document.getElementById("btn-regenerate");
   if (regen) regen.addEventListener("click", regenerateActiveTrip);
@@ -2229,6 +2247,28 @@ function formatMinutes(m) {
 
 
 const APP_VERSION = "v43";
+
+// --- 목적지별 표지 색·그림 (사진 대신 저작권 걱정 없는 색과 이모지) ---
+const DEST_THEMES = [
+  [/교토|나라|오사카|간사이|고베/, "#FF7E5F", "#F7B267", "⛩️"],
+  [/도쿄|요코하마|하코네/, "#5B6CFF", "#8EC5FC", "🗼"],
+  [/후쿠오카|규슈|오키나와|나하/, "#00A3C4", "#7EE8C9", "🏝️"],
+  [/삿포로|홋카이도/, "#74B9FF", "#C8E6FF", "❄️"],
+  [/제주|서귀포|우도/, "#00A3C4", "#FFB547", "🍊"],
+  [/부산|해운대|광안리|여수|통영|거제/, "#0077B6", "#48CAE4", "🌊"],
+  [/강릉|속초|양양|동해|삼척/, "#2E86DE", "#7FD3F7", "🌅"],
+  [/경주|안동|전주|공주|부여/, "#B5651D", "#F2C14E", "🏯"],
+  [/서울|인천|수원/, "#4A4E9C", "#7F8CE0", "🏙️"],
+  [/대만|타이베이|홍콩|마카오|상하이/, "#E84A5F", "#FF847C", "🏮"],
+  [/방콕|태국|치앙마이|푸껫|다낭|베트남|나트랑|세부|발리|괌|사이판/, "#F7971E", "#FFD200", "🌴"],
+  [/파리|런던|로마|유럽|스페인|바르셀로나|이탈리아/, "#6D5BD0", "#C4A1FF", "🏰"],
+  [/뉴욕|미국|하와이|LA|로스앤젤레스/, "#11998E", "#38EF7D", "🗽"]
+];
+function destTheme(text) {
+  const t = String(text || "");
+  const hit = DEST_THEMES.find(([re]) => re.test(t));
+  return hit ? { c1: hit[1], c2: hit[2], emoji: hit[3] } : { c1: "#00A3C4", c2: "#007E9C", emoji: "✈️" };
+}
 
 // --- 식성: 매운 음식·못 먹는 음식 ---
 const SPICY_RE = /개미집|낙곱새|엽기|배떡|청년다방|불타는|홍짜장|교동짬뽕|마라|훠궈|떡볶이|엽떡|짬뽕|닭발|쭈꾸미|주꾸미|낙지|매운|불닭|아구찜|아귀찜|해물찜|닭갈비|찜닭|김치찜|김치찌개|부대찌개|육개장|감자탕|탄탄|쓰촨|사천|똠얌|커리|카레|태국 음식|인도 음식|麻辣|火锅|辣|spicy|sichuan|szechuan|hot ?pot|curry|thai|indian/i;
