@@ -1229,3 +1229,27 @@ input[type="time"]::-webkit-calendar-picker-indicator { margin-left: auto; }
 .home-tab-n { display: inline-block; min-width: 18px; padding: 0 5px; margin-left: 2px; border-radius: 999px; background: var(--primary-solid); color: #fff; font-size: 11px; }
 .template-list.past-list { max-width: 760px; margin-left: auto; margin-right: auto; }
 .past-month { grid-column: 1 / -1; margin: 6px 2px 0; font-size: var(--fs-md); font-weight: 900; color: var(--text-color); }
+
+/* ---------- 플래너: 이미 예매했어요 ---------- */
+.booked-box { margin: 4px 0 14px; border: 1px dashed var(--border-color); border-radius: 14px; padding: 10px 12px; background: var(--card-bg-solid); }
+.booked-box[hidden] { display: none; }
+.booked-box > summary { list-style: none; cursor: pointer; display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 8px; }
+.booked-box > summary::-webkit-details-marker { display: none; }
+.booked-box > summary::after { content: "＋"; margin-left: auto; font-weight: 900; color: var(--primary-solid); }
+.booked-box[open] > summary::after { content: "－"; }
+.booked-box .bk-title { font-weight: 800; }
+.booked-box summary small { color: var(--text-muted); font-size: var(--fs-xs); }
+.booked-box[open] { border-style: solid; }
+.bk-modes { display: flex; gap: 6px; margin: 12px 0 6px; flex-wrap: wrap; }
+.bk-modes .seg-btn { flex: 1 1 0; min-width: 0; white-space: nowrap; }
+.bk-leg { margin-top: 10px; }
+.bk-leg-title { font-weight: 800; font-size: var(--fs-sm); margin-bottom: 4px; }
+.bk-leg-title small { color: var(--text-muted); font-weight: 600; margin-left: 4px; }
+.bk-leg .form-row { gap: 8px; }
+.bk-leg .form-group { margin-bottom: 6px; min-width: 0; }
+.bk-no { width: 100%; }
+.tk-sug { color: var(--text-muted); font-weight: 700; }
+.tk-sug-tag { display: inline-block; margin-left: 4px; padding: 0 6px; border-radius: 999px; background: rgba(255, 181, 71, 0.18); color: #A15C00; font-size: 10px; font-weight: 800; letter-spacing: 0; }
+[data-theme="dark"] .tk-sug-tag { color: #FFC56B; }
+.bk-modes .seg-btn { border: 1px solid var(--border-color); background: var(--card-bg-solid); padding: 8px 6px; }
+.bk-modes .seg-btn.on { background: var(--primary-light); color: var(--primary-solid); border-color: var(--primary-solid); font-weight: 800; }

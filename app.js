@@ -1183,6 +1183,111 @@ let generateCancelledByUser = false;
 
 const PARTY_PEOPLE = { "혼자": 1, "연인/배우자와 둘이서": 2, "친구들과": 3, "어린 자녀가 있는 가족": 4, "부모님(어르신) 모시고, 걷는 양을 줄여서": 3 };
 
+// --- 플래너: '이미 예매했어요' (가는 편·오는 편 시각) ---
+function bookedModeFor(dest) {
+  const kind = tripKind({ destination: dest || "", title: "", places: [] });
+  if (kind !== "inland") return "flight";
+  const c = cityStops(String(dest || "").split(/[\/,·]/)[0]);
+  if (c && !c.train) return "express";
+  // 서울이 아닌 곳에서 다른 노선 도시로 가면(예: 광주→부산) 직통 KTX가 없어 고속버스가 보통
+  const origin = originCity(null);
+  const oc = /서울/.test(origin) ? null : cityStops(origin);
+  if (c && oc && oc.line !== c.line) return "express";
+  return "train";
+}
+
+function setBookedMode(mode) {
+  document.querySelectorAll("#booked-mode .seg-btn").forEach(b => {
+    b.classList.toggle("on", b.dataset.mode === mode);
+    b.setAttribute("aria-checked", b.dataset.mode === mode ? "true" : "false");
+  });
+  const ph = { flight: ["편명 (선택) 예: 7C1301", "편명 (선택) 예: 7C1302"], train: ["열차 번호 (선택) 예: KTX 501", "열차 번호 (선택) 예: KTX 520"], express: ["버스 회사·번호 (선택)", "버스 회사·번호 (선택)"] }[mode];
+  document.getElementById("bk-out-no").placeholder = ph[0];
+  document.getElementById("bk-ret-no").placeholder = ph[1];
+}
+
+function setupBookedBox() {
+  const box = document.getElementById("booked-box");
+  if (!box) return;
+  let touched = false;
+  document.querySelectorAll("#booked-mode .seg-btn").forEach(b => b.addEventListener("click", () => { touched = true; setBookedMode(b.dataset.mode); }));
+  const dest = document.getElementById("input-destination");
+  const sync = () => { if (!touched) setBookedMode(bookedModeFor(dest.value)); };
+  dest.addEventListener("change", sync);
+  dest.addEventListener("blur", sync);
+  box.addEventListener("toggle", sync);
+  // 자가용이면 예매할 게 없으니 숨김
+  document.querySelectorAll("#transport-picker .transport-opt").forEach(b => b.addEventListener("click", () => {
+    box.hidden = b.dataset.transport === "car";
+  }));
+}
+
+function readBookedBox() {
+  const box = document.getElementById("booked-box");
+  if (!box || box.hidden) return null;
+  const v = id => (document.getElementById(id).value || "").trim();
+  const leg = k => ({ dep: v(`bk-${k}-dep`), arr: v(`bk-${k}-arr`), no: v(`bk-${k}-no`).toUpperCase() });
+  const out = leg("out"), ret = leg("ret");
+  if (!out.dep && !out.arr && !ret.dep && !ret.arr) return null;
+  const mode = (document.querySelector("#booked-mode .seg-btn.on") || {}).dataset?.mode || "flight";
+  return { mode, out, ret };
+}
+
+function clearBookedBox() {
+  ["out", "ret"].forEach(k => ["dep", "arr", "no"].forEach(f => { const el = document.getElementById(`bk-${k}-${f}`); if (el) el.value = ""; }));
+  const box = document.getElementById("booked-box");
+  if (box) box.open = false;
+}
+
+// 기차·버스 예매 시각을 역·터미널 장소에 반영 (AI 없이, 시간·설명만)
+function setGroundTimes(trip, out, ret) {
+  const ic = trip.intercity;
+  if (!ic) return;
+  ic.times = { out, ret };
+  const outP = trip.places.find(p => p.intercity === "out");
+  const backP = trip.places.find(p => p.intercity === "back");
+  if (outP && out && out.arr) {
+    const a = hhmmToMin(out.arr);
+    outP.time = `${out.arr} - ${minutesToHHMM(a + 20)}`;
+    if (outP.move) { outP.move.note = out.no || ""; const dm = a - hhmmToMin(out.dep); if (out.dep && dm > 0) outP.move.minutes = dm; }
+    outP.description = `${out.no ? out.no + " · " : ""}${out.dep ? `${ic.from} ${out.dep} 출발 → ` : ""}${out.arr} 도착`;
+  }
+  if (backP && ret && ret.dep) {
+    const dp = hhmmToMin(ret.dep);
+    backP.time = `${minutesToHHMM(dp - 20)} - ${ret.dep}`;
+    backP.description = `${ret.no ? ret.no + " · " : ""}${ret.dep} 출발${ret.arr ? ` → ${ic.from} ${ret.arr} 도착` : ""}`;
+  }
+  const pickP = trip.places.find(p => p.intercity === "pick"), dropP = trip.places.find(p => p.intercity === "drop");
+  if (pickP && outP) { const r = parseTimeRange(outP.time); if (r) pickP.time = `${minutesToHHMM(r[1])} - ${minutesToHHMM(r[1] + 30)}`; }
+  if (dropP && backP) { const r = parseTimeRange(backP.time); if (r) dropP.time = `${minutesToHHMM(r[0] - 40)} - ${minutesToHHMM(r[0] - 10)}`; }
+}
+
+// 새로 만든 일정에 플래너에서 넣은 예매 시각을 기록 → 티켓에 '예매 완료', 다시 맞추기 창에도 채워짐
+function applyBookedToTrip(trip, booked) {
+  if (!trip || !booked) return;
+  if (booked.mode === "flight") {
+    const legs = flightLegs(trip);
+    const ft = legs.length ? flightTrip(trip, legs[0].place) : synthFlightTrip(trip, null);
+    if (!ft) return;
+    const mk = (b, leg) => leg && b && (b.dep || b.arr) ? Object.assign({}, b, { from: leg.from, to: leg.to, day: leg.day }) : null;
+    trip.flights = { out: mk(booked.out, ft.out), ret: mk(booked.ret, ft.ret) };
+    if (!trip.flights.out && !trip.flights.ret) delete trip.flights;
+    else if (!trip.flights.out) trip.flights.out = { from: ft.out.from, to: ft.out.to, day: ft.out.day };
+  } else if (tripKind(trip) === "inland") {
+    const dest = cityStops((trip.destination || "").split(/[\/,·]/)[0]);
+    if (!dest || !dest[booked.mode]) return;
+    applyIntercity(booked.mode);
+    setGroundTimes(trip, booked.out, booked.ret);
+    sortTripPlaces(trip, 1);
+    if (trip.days > 1) sortTripPlaces(trip, trip.days);
+    refineUndoTrip = null;
+    recentlyChanged = new Set();
+    setRefineMode("normal");
+  }
+  persistActiveTrip();
+  renderItineraryAll();
+}
+
 function setupPlannerForm() {
   const form = document.getElementById("planner-form");
   const cancelBtn = document.getElementById("btn-cancel-generate");
@@ -1200,6 +1305,8 @@ function setupPlannerForm() {
       });
     });
   });
+
+  setupBookedBox();
 
   const partySel = document.getElementById("input-party");
   const peopleSel = document.getElementById("input-people");
@@ -1230,6 +1337,7 @@ function setupPlannerForm() {
       startDate: document.getElementById("input-start-date").value,
       wake: document.getElementById("input-wake").value || "",
       request: document.getElementById("input-request").value.trim(),
+      booked: readBookedBox(),
       styles: Array.from(document.querySelectorAll(".style-tags-container .style-tag.active")).map(t => t.getAttribute("data-style"))
     };
     if (input.styles.length === 0) input.styles.push("relaxing");
@@ -1241,8 +1349,11 @@ function setupPlannerForm() {
     if (trip) {
       document.getElementById("input-destination").value = "";
       document.getElementById("input-request").value = "";
+      clearBookedBox();
+      if (window.plannerGoStep) window.plannerGoStep(1);
       state.activeTrip = trip;
       state.activeTripDay = 1;
+      applyBookedToTrip(trip, input.booked);
       saveDraft();
       showItineraryView();
       if (trip.source === "ai") {
@@ -2425,7 +2536,7 @@ function formatMinutes(m) {
 
 
 
-const APP_VERSION = "v47";
+const APP_VERSION = "v48";
 
 // --- 목적지별 표지 색·그림 (사진 대신 저작권 걱정 없는 색과 이모지) ---
 const DEST_THEMES = [
@@ -2709,6 +2820,19 @@ function originCity(trip) {
 }
 
 // 국내 내륙: 출발 도시 ↔ 목적지 기차·버스 예매 블록 (대중교통·알아서·택시일 때)
+// 출발 도시 노선에 따라 도착 터미널이 다른 경우 (예: 광주→부산은 서부터미널)
+function expressAltOf(trip, destStops) {
+  const origin = originCity(trip);
+  if (!destStops || !destStops.expressAlt || /서울/.test(origin)) return null;
+  const oLine = (cityStops(origin) || {}).line;
+  return (oLine && destStops.expressAlt[oLine]) || null;
+}
+
+// 티켓에 쓸 짧은 역·터미널 이름 (예: 광주종합버스터미널(유스퀘어) → 광주, 부산서부시외버스터미널(사상) → 부산서부)
+function shortStop(name) {
+  return String(name || "").replace(/\(.*\)/g, "").replace(/(종합|고속|시외)?(버스)?(터미널|복합환승센터)$|역$/g, "").replace(/종합$|시외$/, "").slice(0, 6);
+}
+
 function railBlockHtml(trip, day) {
   if (!trip || tripKind(trip) !== "inland") return "";
   // 자가용으로 집에서 바로 가는 여행·도보 여행이면 숨김 (렌터카는 KTX·버스로 가서 빌리므로 표시)
@@ -2744,7 +2868,7 @@ function railBlockHtml(trip, day) {
       <div class="ic-modes">
         <span>어떻게 갈까요?</span>
         ${destStops.train ? `<button class="seg-btn ${ic && ic.mode === "train" ? "on" : ""}" data-action="icmode" data-mode="train" data-day="${day}">🚄 KTX·기차 (${esc(destStops.train[0])})</button>` : ""}
-        <button class="seg-btn ${ic && ic.mode === "express" ? "on" : ""}" data-action="icmode" data-mode="express" data-day="${day}">🚌 고속버스 (${esc(destStops.express[0])})</button>
+        <button class="seg-btn ${ic && ic.mode === "express" ? "on" : ""}" data-action="icmode" data-mode="express" data-day="${day}">🚌 ${expressAltOf(trip, destStops) ? "시외버스" : "고속버스"} (${esc((expressAltOf(trip, destStops) || destStops.express)[0])})</button>
       </div>` : "";
   return `
     <div class="move-connector rail-block">${window.icon(ic && ic.mode === "express" ? "bus" : "train", 15)}<span class="move-main">${isOut ? "가는 길" : "돌아오는 길"} · ${when} · ${people}명${ic ? ` · ${esc(ic.service)}` : ""}</span><span class="move-leg">${esc(icFrom)} → ${esc(icTo)}</span>
@@ -2754,8 +2878,8 @@ function railBlockHtml(trip, day) {
       <div class="stay-links">${sites.map(x => `<button class="stay-link" data-action="railsite" data-day="${day}" data-site="${x.k}"><b>${x.label}</b><small>${x.sub}</small></button>`).join("")}</div>
       ${ic && isOut ? localModeHtml(trip) : ""}
       ${ic ? `<div class="tickets">
-        ${ticketHtml({ kind: ic.mode, label: `가는 ${ic.service}`, fromCode: ic.from.replace(/역|고속버스터미널|터미널|\(.*\)/g, "").slice(0, 5), toCode: ic.stop.replace(/역|고속버스터미널|종합버스터미널|터미널|\(.*\)/g, "").slice(0, 5), fromName: ic.from, toName: ic.stop, date: getTripDate(trip, 1), dep: ic.times && ic.times.out.dep, arr: ic.times && ic.times.out.arr, no: ic.times && ic.times.out.no })}
-        ${trip.places.some(p => p.intercity === "back") ? ticketHtml({ kind: ic.mode, label: `오는 ${ic.service}`, fromCode: ic.stop.replace(/역|고속버스터미널|종합버스터미널|터미널|\(.*\)/g, "").slice(0, 5), toCode: ic.from.replace(/역|고속버스터미널|터미널|\(.*\)/g, "").slice(0, 5), fromName: ic.stop, toName: ic.from, date: getTripDate(trip, trip.days || 1), dep: ic.times && ic.times.ret && ic.times.ret.dep, arr: ic.times && ic.times.ret && ic.times.ret.arr, no: ic.times && ic.times.ret && ic.times.ret.no }) : ""}
+        ${ticketHtml({ kind: ic.mode, label: `가는 ${ic.service}`, fromCode: shortStop(ic.from), toCode: shortStop(ic.stop), fromName: ic.from, toName: ic.stop, date: getTripDate(trip, 1), dep: ic.times && ic.times.out.dep, arr: ic.times && ic.times.out.arr, no: ic.times && ic.times.out.no, sugDep: legSuggest(trip.places.find(p => p.intercity === "out")).dep, sugArr: legSuggest(trip.places.find(p => p.intercity === "out")).arr })}
+        ${trip.places.some(p => p.intercity === "back") ? ticketHtml({ kind: ic.mode, label: `오는 ${ic.service}`, fromCode: shortStop(ic.stop), toCode: shortStop(ic.from), fromName: ic.stop, toName: ic.from, date: getTripDate(trip, trip.days || 1), dep: ic.times && ic.times.ret && ic.times.ret.dep, arr: ic.times && ic.times.ret && ic.times.ret.arr, no: ic.times && ic.times.ret && ic.times.ret.no, sugDep: legSuggest(trip.places.find(p => p.intercity === "back"), "depart").dep }) : ""}
       </div>
       <button class="btn btn-sm ff-open" data-action="groundfit" data-day="${day}">${window.icon("calendar", 16)}${ic.times ? "예매 시간 고치기" : "예매 시간 넣고 일정 맞추기"}</button>` : ""}
       <div class="stay-hint">${ic ? "" : "수단을 고르면 타는 곳·내리는 곳에 맞춰 첫날 시작과 마지막 날 끝이 바뀌어요. "}예매 사이트는 역·날짜를 미리 채울 수 없어서, 누르면 '${when} ${esc(icFrom)} → ${esc(icTo)}'를 복사해 두고 안내해요.</div>
@@ -2783,7 +2907,7 @@ async function openRailSite(day, key) {
 // --- 국내 내륙: KTX / 고속버스에 따라 타는 곳·내리는 곳이 다르므로 일정 시작·끝을 그 역/터미널로 ---
 // [이름, 위도, 경도]
 const CITY_STOPS = {
-  "부산": { train: ["부산역", 35.1151, 129.0422], express: ["부산종합버스터미널(노포)", 35.2840, 129.0953], line: "gyeongbu", t: [150, 59800], b: [260, 36000] },
+  "부산": { train: ["부산역", 35.1151, 129.0422], express: ["부산종합버스터미널(노포)", 35.2840, 129.0953], expressAlt: { honam: ["부산서부시외버스터미널(사상)", 35.1636, 128.9838] }, line: "gyeongbu", t: [150, 59800], b: [260, 36000] },
   "경주": { train: ["신경주역", 35.7983, 129.1390], express: ["경주고속버스터미널", 35.8390, 129.2040], line: "gyeongbu", t: [125, 49300], b: [230, 30000] },
   "강릉": { train: ["강릉역", 37.7638, 128.8994], express: ["강릉고속버스터미널", 37.7640, 128.9180], line: "gangwon", t: [115, 27600], b: [170, 22000] },
   "여수": { train: ["여수엑스포역", 34.7530, 127.7488], express: ["여수종합버스터미널", 34.7556, 127.7206], line: "honam", t: [170, 47200], b: [290, 35000] },
@@ -2831,10 +2955,13 @@ function applyIntercity(mode) {
     return;
   }
   const from = originStop(trip, mode, dest.line);
-  const [stopName, lat, lng] = dest[mode];
+  // 호남(광주 등)에서 오는 버스는 부산 서부(사상)처럼 도착 터미널이 다른 경우
+  const oLine = (cityStops(originCity(trip)) || {}).line;
+  const altStop = mode === "express" && dest.expressAlt && oLine && !/서울/.test(originCity(trip)) ? dest.expressAlt[oLine] : null;
+  const [stopName, lat, lng] = altStop || dest[mode];
   const est = mode === "train" ? dest.t : dest.b;
   const fromSeoul = /서울/.test(originCity(trip));
-  const service = mode === "train" ? (dest.line === "jungang" ? "KTX-이음" : dest.city === "춘천" ? "ITX-청춘" : "KTX") : "고속버스";
+  const service = mode === "train" ? (dest.line === "jungang" ? "KTX-이음" : dest.city === "춘천" ? "ITX-청춘" : "KTX") : (altStop ? "시외버스" : "고속버스");
   const before = cloneTrip(trip);
   const lastDay = trip.days || 1;
   const mkMove = (fromStop, toStop) => ({
@@ -3293,14 +3420,26 @@ async function applyWake(time, all) {
 
 
 // --- 탑승권 모양 티켓 (항공·기차·버스·숙소) ---
+// 아직 예매 전인 구간: 일정에 잡힌 도착·출발 시각을 '추천 시간'으로
+function legSuggest(place, which) {
+  if (!place) return {};
+  const r = parseTimeRange(place.time);
+  if (!r) return {};
+  const mins = place.move && place.move.minutes;
+  if (which === "depart") return { dep: minutesToHHMM(r[1]) };
+  return { arr: minutesToHHMM(r[0]), dep: mins ? minutesToHHMM(r[0] - mins) : "" };
+}
+
 function ticketHtml(o) {
   const icon = { flight: "✈", train: "🚄", express: "🚌", bus: "🚌", hotel: "🏨" }[o.kind] || "✈";
   const d = o.date ? `${o.date.getMonth() + 1}/${o.date.getDate()}(${WEEKDAYS[o.date.getDay()]})` : "날짜 미정";
   const booked = o.kind !== "hotel" && !!(o.dep || o.arr);
+  const sug = !booked && o.kind !== "hotel" && (o.sugDep || o.sugArr);
+  const cell = (v, s2) => v ? esc(v) : (sug && s2 ? `<span class="tk-sug">~${esc(s2)}</span>` : "--:--");
   return `
     <div class="ticket ${booked ? "booked" : ""}">
       <div class="tk-main">
-        <div class="tk-label">${esc(o.label || "")}</div>
+        <div class="tk-label">${esc(o.label || "")}${sug ? ` <span class="tk-sug-tag">추천 시간 · 이 시간대 표를 고르세요</span>` : ""}</div>
         ${o.kind === "hotel" ? `<div class="tk-hotel"><span>${icon}</span><b>${esc(o.fromName || "")}</b></div>` : `<div class="tk-route">
           <div class="tk-end"><b>${esc(o.fromCode || "")}</b><small>${esc(o.fromName || "")}</small></div>
           <div class="tk-mid"><span>${icon}</span></div>
@@ -3309,8 +3448,8 @@ function ticketHtml(o) {
       </div>
       <div class="tk-stub">
         <div><small>${o.kind === "hotel" ? "체크인" : "날짜"}</small><b>${d}</b></div>
-        <div><small>${o.kind === "hotel" ? "체크아웃" : "출발"}</small><b>${esc(o.dep || "--:--")}</b></div>
-        <div><small>${o.kind === "hotel" ? "인원" : "도착"}</small><b>${esc(o.arr || "--:--")}</b></div>
+        <div><small>${o.kind === "hotel" ? "체크아웃" : "출발"}</small><b>${o.kind === "hotel" ? esc(o.dep || "--:--") : cell(o.dep, o.sugDep)}</b></div>
+        <div><small>${o.kind === "hotel" ? "인원" : "도착"}</small><b>${o.kind === "hotel" ? esc(o.arr || "--:--") : cell(o.arr, o.sugArr)}</b></div>
         ${o.no ? `<div><small>${o.kind === "flight" ? "편명" : "번호"}</small><b>${esc(o.no)}</b></div>` : ""}
       </div>
       ${booked && o.kind !== "hotel" ? `<span class="tk-stamp">예매 완료</span>` : ""}
@@ -3473,12 +3612,13 @@ function flightPanelHtml(ft, id) {
   const fo = fl.out && fl.out.from === out.from ? fl.out : {};
   const fr = fl.ret && ret && fl.ret.from === ret.from ? fl.ret : {};
   const nm = c => (AIRPORT_NAMES[c] || "").replace(/\(.*\)/, "");
+  const sugOf = p => { const x = legSuggest(p); return { sugDep: x.dep, sugArr: x.arr }; };
   return `
       <div class="stay-panel flight-panel">
         <div class="stay-head"><span>${head}</span></div>
         <div class="tickets">
-          ${ticketHtml({ kind: "flight", label: "가는 편", fromCode: out.from, toCode: out.to, fromName: nm(out.from), toName: nm(out.to), date: out.date, dep: fo.dep, arr: fo.arr, no: fo.no })}
-          ${ret ? ticketHtml({ kind: "flight", label: "오는 편", fromCode: ret.from, toCode: ret.to, fromName: nm(ret.from), toName: nm(ret.to), date: ret.date, dep: fr.dep, arr: fr.arr, no: fr.no }) : ""}
+          ${ticketHtml(Object.assign({ kind: "flight", label: "가는 편", fromCode: out.from, toCode: out.to, fromName: nm(out.from), toName: nm(out.to), date: out.date, dep: fo.dep, arr: fo.arr, no: fo.no }, sugOf(out.place)))}
+          ${ret ? ticketHtml(Object.assign({ kind: "flight", label: "오는 편", fromCode: ret.from, toCode: ret.to, fromName: nm(ret.from), toName: nm(ret.to), date: ret.date, dep: fr.dep, arr: fr.arr, no: fr.no }, sugOf(ret.place))) : ""}
         </div>
         ${ft.guessed ? `<div class="stay-hint">출발 도시와 여행 날짜로 첫날 가는 편·마지막 날 오는 편을 잡았어요. 공항이 다르면 사이트에서 바꿔 주세요.</div>` : ""}
         ${out.date ? "" : `<div class="stay-hint warn">여행 시작일이 없어 날짜 없이 열려요. 위쪽 날짜 칸에서 출발일을 정하면 날짜까지 채워져요.</div>`}
@@ -3623,28 +3763,14 @@ function openGroundFit() {
 }
 
 // 기차·버스 예매 시간에 맞춰 역·터미널 시간과 첫날·마지막 날 일정 조율
-async function fitTripToGround(out, ret) {
+async function fitTripToGround(out, ret, opts = {}) {
   const trip = state.activeTrip;
   const ic = trip.intercity;
-  ic.times = { out, ret };
   const before = cloneTrip(trip);
+  setGroundTimes(trip, out, ret);
   const outP = trip.places.find(p => p.intercity === "out");
   const backP = trip.places.find(p => p.intercity === "back");
-  if (outP && out.arr) {
-    const a = hhmmToMin(out.arr);
-    outP.time = `${out.arr} - ${minutesToHHMM(a + 20)}`;
-    if (outP.move) { outP.move.note = out.no || ""; const dm = a - hhmmToMin(out.dep); if (out.dep && dm > 0) outP.move.minutes = dm; }
-    outP.description = `${out.no ? out.no + " · " : ""}${out.dep ? `${ic.from} ${out.dep} 출발 → ` : ""}${out.arr} 도착`;
-  }
-  if (backP && ret && ret.dep) {
-    const dp = hhmmToMin(ret.dep);
-    backP.time = `${minutesToHHMM(dp - 20)} - ${ret.dep}`;
-    backP.description = `${ret.no ? ret.no + " · " : ""}${ret.dep} 출발${ret.arr ? ` → ${ic.from} ${ret.arr} 도착` : ""}`;
-  }
-  // 렌터카 인수·반납 시간도 역·터미널 시간에 맞춰
   const pickP = trip.places.find(p => p.intercity === "pick"), dropP = trip.places.find(p => p.intercity === "drop");
-  if (pickP && outP) { const r = parseTimeRange(outP.time); if (r) pickP.time = `${minutesToHHMM(r[1])} - ${minutesToHHMM(r[1] + 30)}`; }
-  if (dropP && backP) { const r = parseTimeRange(backP.time); if (r) dropP.time = `${minutesToHHMM(r[0] - 40)} - ${minutesToHHMM(r[0] - 10)}`; }
   const rentalKeep = pickP || dropP ? " 렌터카 인수·반납 장소도 이름·시간 그대로 두세요." : "";
   const instr = {};
   if (out.arr) instr[1] = `예매한 ${ic.service}: ${ic.from} ${out.dep || ""} 출발 → ${ic.stop} ${out.arr} 도착. Day 1 맨 앞의 "${outP ? outP.name : ic.stop + " 도착"}"(category transit, time "${out.arr} - ${minutesToHHMM(hhmmToMin(out.arr) + 20)}")은 그대로 두고, ${ic.stop}에서 다음 장소까지 이동 시간을 고려해 그 뒤로 일정을 다시 배치하세요. 시간이 모자라면 장소를 빼거나 줄이고, 숙소는 유지하세요.${rentalKeep}`;
@@ -3659,8 +3785,8 @@ async function fitTripToGround(out, ret) {
       if (dl.length) { dl[dl.length - 1].intercity = "back"; dl[dl.length - 1].coordChecked = true; }
     }
   };
-  if (!window.RoutyAI.hasApiKey()) {
-    // AI 없이: 첫날은 도착 뒤로 밀고, 마지막 날은 출발 전에 끝나게 앞당기기
+  if (!window.RoutyAI.hasApiKey() || opts.quick) {
+    // AI 없이(또는 차이가 작을 때): 첫날은 도착 뒤로 밀고, 마지막 날은 출발 전에 끝나게 앞당기기
     if (out.arr) {
       const first = trip.places.filter(p => p.day === 1 && !p.intercity)[0];
       const st = first ? parseTimeToMinutes(first.time) : NaN;
@@ -3682,7 +3808,7 @@ async function fitTripToGround(out, ret) {
     renderItineraryAll();
     persistActiveTrip();
     setRefineMode("undo");
-    showToast("예매 시간에 맞춰 첫날·마지막 날 시간을 옮겼어요. 장소를 줄이거나 바꾸는 것까지 하려면 설정에서 Gemini 키를 넣어 주세요.", 5000);
+    showToast(opts.quick ? "일정과 거의 같은 시간이라 장소는 그대로 두고 시간만 맞췄어요." : "예매 시간에 맞춰 첫날·마지막 날 시간을 옮겼어요. 장소를 줄이거나 바꾸는 것까지 하려면 설정에서 Gemini 키를 넣어 주세요.", 5000);
     return;
   }
   const refineBtn = document.getElementById("btn-ai-refine");
@@ -3756,12 +3882,20 @@ function setupFlightFit() {
       return;
     }
     close();
-    if (ft.kind === "ground") fitTripToGround(out, ret);
-    else fitTripToFlights(out, ret);
+    // 일정에 잡혀 있던 시각과 45분 안쪽 차이면 시간만 옮기고, 크게 다르면 그날을 AI로 다시 짠다
+    const trip = state.activeTrip;
+    const planOut = ft.kind === "ground" ? legSuggest(trip.places.find(p => p.intercity === "out")).arr : legSuggest(ft.out.place).arr;
+    const planRet = ft.kind === "ground" ? legSuggest(trip.places.find(p => p.intercity === "back"), "depart").dep : (ft.ret ? legSuggest(ft.ret.place).dep : "");
+    const diffs = [];
+    if (out.arr) diffs.push(planOut ? Math.abs(hhmmToMin(out.arr) - hhmmToMin(planOut)) : Infinity);
+    if (ret && ret.dep) diffs.push(planRet ? Math.abs(hhmmToMin(ret.dep) - hhmmToMin(planRet)) : Infinity);
+    const quick = diffs.length > 0 && diffs.every(d => d <= 45);
+    if (ft.kind === "ground") fitTripToGround(out, ret, { quick });
+    else fitTripToFlights(out, ret, { quick, ft });
   });
 }
 
-async function fitTripToFlights(out, ret) {
+async function fitTripToFlights(out, ret, opts = {}) {
   const trip = state.activeTrip;
   trip.flights = { out, ret };
   const intl = !(KOREA_CODES.has(out.from) && KOREA_CODES.has(out.to));
@@ -3784,17 +3918,43 @@ async function fitTripToFlights(out, ret) {
       ` 그 뒤 일정은 넣지 마세요.`;
   }
   const days = Object.keys(instr).map(Number).sort((a, b) => a - b);
-  if (!window.RoutyAI.hasApiKey()) {
-    // AI 없이: 첫날만 도착 시각 뒤로 밀기
+  if (!window.RoutyAI.hasApiKey() || opts.quick) {
+    // AI 없이(또는 차이가 작을 때): 공항 시각을 고치고 첫날은 도착 뒤로, 마지막 날은 공항 가기 전에 끝나게
+    const before = cloneTrip(trip);
+    const ft = opts.ft;
+    const outPlace = ft && ft.out && ft.out.place, retPlace = ft && ft.ret && ft.ret.place;
+    if (outPlace && out.arr) {
+      const r = parseTimeRange(outPlace.time) || [0, 60];
+      outPlace.time = `${out.arr} - ${minutesToHHMM(hhmmToMin(out.arr) + Math.max(20, r[1] - r[0]))}`;
+      if (outPlace.move) { outPlace.move.note = out.no || outPlace.move.note; const dm = hhmmToMin(out.arr) - hhmmToMin(out.dep); if (out.dep && dm > 0) outPlace.move.minutes = dm; }
+    }
+    if (retPlace && ret && ret.arr) {
+      const r = parseTimeRange(retPlace.time) || [0, 30];
+      retPlace.time = `${ret.arr} - ${minutesToHHMM(hhmmToMin(ret.arr) + Math.max(20, r[1] - r[0]))}`;
+      if (retPlace.move) { retPlace.move.note = ret.no || retPlace.move.note; const dm = hhmmToMin(ret.arr) - hhmmToMin(ret.dep); if (ret.dep && dm > 0) retPlace.move.minutes = dm; }
+    }
     if (out.arr) {
       const first = trip.places.filter(p => p.day === out.day && p.category !== "transit")[0];
       const startMin = first ? parseTimeToMinutes(first.time) : NaN;
       const need = hhmmToMin(out.arr) + (intl ? 120 : 60);
       if (first && isFinite(startMin) && startMin < need) shiftDayFrom(first.id, need - startMin);
     }
+    if (ret && ret.dep) {
+      const dl = trip.places.filter(p => p.day === ret.day && p.category !== "transit" && p.category !== "hotel");
+      const end = dl.length ? (parseTimeRange(dl[dl.length - 1].time) || [0, 0])[1] : 0;
+      const limit = hhmmToMin(ret.dep) - (intl ? 210 : 120); // 공항 이동 + 수속
+      if (dl.length && end > limit) {
+        const delta = Math.max(limit - end, 8 * 60 - parseTimeToMinutes(dl[0].time));
+        if (delta < 0) dl.forEach(p => { p.time = shiftTimeString(p.time, delta); });
+      }
+    }
+    sortTripPlaces(trip, out.day);
+    if (ret) sortTripPlaces(trip, ret.day);
+    refineUndoTrip = before;
     renderItineraryAll();
     persistActiveTrip();
-    showToast("항공편 시간을 저장하고 첫날 일정을 도착 뒤로 밀었어요. 마지막 날까지 다시 짜려면 설정에서 Gemini 키를 넣어 주세요.", 5000);
+    setRefineMode("undo");
+    showToast(opts.quick ? "일정과 거의 같은 시간이라 장소는 그대로 두고 시간만 맞췄어요." : "항공편 시간에 맞춰 첫날·마지막 날 시간을 옮겼어요. 장소를 줄이거나 바꾸는 것까지 하려면 설정에서 Gemini 키를 넣어 주세요.", 5000);
     return;
   }
   const refineBtn = document.getElementById("btn-ai-refine");

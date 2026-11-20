@@ -193,6 +193,32 @@
               </div>
             </div>
 
+            <details class="booked-box" id="booked-box">
+              <summary><span class="bk-title">🎫 이미 예매했어요</span><small>선택 · 시간을 넣으면 그 시간에 맞춰 짜요</small></summary>
+              <div class="bk-modes" id="booked-mode" role="radiogroup">
+                <button type="button" class="seg-btn on" data-mode="flight" role="radio">✈ 비행기</button>
+                <button type="button" class="seg-btn" data-mode="train" role="radio">🚄 KTX·기차</button>
+                <button type="button" class="seg-btn" data-mode="express" role="radio">🚌 고속버스</button>
+              </div>
+              <div class="bk-leg">
+                <div class="bk-leg-title">가는 편 <small>첫날</small></div>
+                <div class="form-row">
+                  <div class="form-group col"><label for="bk-out-dep">출발</label><input type="time" id="bk-out-dep"></div>
+                  <div class="form-group col"><label for="bk-out-arr">도착</label><input type="time" id="bk-out-arr"></div>
+                </div>
+                <div class="form-group bk-no-wrap"><input type="text" id="bk-out-no" class="bk-no" placeholder="편명 (선택) 예: 7C1301" autocomplete="off" maxlength="20"></div>
+              </div>
+              <div class="bk-leg">
+                <div class="bk-leg-title">오는 편 <small>마지막 날</small></div>
+                <div class="form-row">
+                  <div class="form-group col"><label for="bk-ret-dep">출발</label><input type="time" id="bk-ret-dep"></div>
+                  <div class="form-group col"><label for="bk-ret-arr">도착</label><input type="time" id="bk-ret-arr"></div>
+                </div>
+                <div class="form-group bk-no-wrap"><input type="text" id="bk-ret-no" class="bk-no" placeholder="편명 (선택) 예: 7C1302" autocomplete="off" maxlength="20"></div>
+              </div>
+              <small class="settings-hint">모르는 칸은 비워 두세요. 가는 편 도착·오는 편 출발만 넣어도 돼요. 해외는 현지 시각으로 넣어 주세요.</small>
+            </details>
+
               <div class="pstep-nav">
                 <button type="button" class="btn btn-block btn-primary" data-next="3">다음: 취향·식성 →</button>
                 <button type="button" class="pstep-quick" data-quick>나머지는 알아서, 바로 만들기</button>

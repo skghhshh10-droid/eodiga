@@ -133,12 +133,26 @@
     return out.join("\n");
   }
 
+  // 이미 예매한 가는 편·오는 편 시각 (플래너의 '이미 예매했어요')
+  function bookedLine(input) {
+    const b = input.booked;
+    if (!b || !((b.out && (b.out.dep || b.out.arr)) || (b.ret && (b.ret.dep || b.ret.arr)))) return "";
+    const kind = { flight: "비행기", train: "기차(KTX 등)", express: "고속·시외버스" }[b.mode] || "교통편";
+    const leg = (l, label) => l && (l.dep || l.arr) ? `${label} ${l.no ? l.no + " " : ""}${l.dep ? l.dep + " 출발" : ""}${l.dep && l.arr ? " → " : ""}${l.arr ? l.arr + " 도착" : ""}` : "";
+    const parts = [leg(b.out, "가는 편(Day 1)"), leg(b.ret, `오는 편(Day ${input.days})`)].filter(Boolean).join(", ");
+    return `- 이미 예매한 ${kind}(가장 중요, 시각은 모두 현지 시각): ${parts}. ` +
+      `Day 1은 가는 편 도착 시각에 맞춰 첫 장소로 도착 ${b.mode === "flight" ? "공항" : "역·터미널"}(category transit, time 시작 = 도착 시각, move.mode "${b.mode}", move.note에 편명·번호)을 넣고, ` +
+      `${b.mode === "flight" ? "입국·짐 찾기와 시내 이동 시간" : "역·터미널에서 다음 장소까지 이동 시간"}을 고려해 그 뒤부터 일정을 짜세요. 도착이 늦으면 첫날은 체크인·저녁 위주로 가볍게. ` +
+      (b.ret && b.ret.dep ? `Day ${input.days}은 오는 편 ${b.ret.dep} 출발에 맞춰 ${b.mode === "flight" ? "국제선이면 2시간 30분, 국내선이면 1시간" : "20분"} 전까지 출발 ${b.mode === "flight" ? "공항" : "역·터미널"}에 도착하도록 앞 일정을 끝내고, 마지막 장소로 그 출발 지점(category transit)을 넣으세요. 그 뒤 관광 일정은 넣지 마세요.` : "");
+  }
+
   function buildCreatePrompt(input) {
     const styles = (input.styles || []).map(s => STYLE_LABELS[s] || s).join(", ") || "자유";
     const lines = [
       "당신은 한국인 여행자를 위한 전문 여행 플래너입니다. 아래 조건으로 실제 여행 일정을 만들어 주세요.",
       `- 목적지: ${input.destination}`,
       `- 출발지: ${input.origin || "광주"}. 출발지와 목적지 사이 오가는 구간을 첫날 맨 앞(도착)과 마지막 날 맨 끝(귀가)에 넣으세요. 해외면 비행기(flight, 도착 공항을 transit으로). 국내 섬(제주·울릉도 등)이면 비행기(flight) 또는 배(ferry). 국내 내륙이면 비행기·배는 절대 쓰지 말고 ${input.transport === "car" ? "자가용(car)으로 집에서 바로 운전해" : "기차(KTX·SRT 등 train) 또는 고속·시외버스(express)로"} 오가고${input.transport === "car" ? "" : ", 도착역·터미널을 transit으로 넣으세요"}.${/광주|전남/.test(input.origin || "광주") ? " 광주(전남광주특별시) 출발이면 국내선은 광주공항(KWJ), 해외는 인천공항(ICN) 출발로 잡고 광주송정역→인천공항 이동도 넣으세요." : ""}`,
+      bookedLine(input) || "- 오가는 구간 시간: 아직 예매 전입니다. 비행기·기차·버스는 실제로 그 노선에 운행하는 시간대로 잡으세요(예: 국내선은 오전 7~10시 출발편, 인천 출발 국제선은 오전 8~11시 출발편, KTX·고속버스는 오전 7~9시 출발). move.minutes에는 실제 소요 시간을, move.note에는 \"HH:MM 출발 예상\"처럼 출발 시각을 적으세요. 도착 공항·역 transit의 time 시작은 그 도착 시각입니다.",
       `- 기간: ${input.days}일${input.days > 1 ? ` (${input.days - 1}박 ${input.days}일)` : " (당일치기)"}`,
       input.startDate ? `- 출발일: ${input.startDate} (계절/요일/휴무일을 고려하세요)` : "",
       input.party ? `- 동행: ${input.party}${input.people ? ` (총 ${input.people}명)` : ""}` : "",
