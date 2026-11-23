@@ -101,6 +101,11 @@
         <div class="screen-content scrollable">
           <form id="planner-form" onsubmit="event.preventDefault();">
             <div id="planner-greet"></div>
+            <div class="plan-mode" id="plan-mode" role="radiogroup" aria-label="일정 만드는 방법">
+              <button type="button" class="plan-mode-btn on" data-mode="auto" role="radio"><span>✨ AI가 다 짜기</span><small>한 번에 완성</small></button>
+              <button type="button" class="plan-mode-btn" data-mode="pick" role="radio"><span>🧺 골라서 짜기</span><small>후보 보고 직접</small></button>
+            </div>
+            <p class="plan-mode-hint" id="plan-mode-hint"></p>
             <div class="ai-key-notice" id="ai-key-notice">
               <strong>Gemini API 키가 아직 없어요</strong>
               <span>설정에서 키를 등록하면 실제 AI가 일정을 짜 줍니다. 지금은 샘플 일정만 만들 수 있어요.</span>
@@ -279,6 +284,7 @@
             </button>
             </div>
           </form>
+          <div class="pick-board" id="pick-board" hidden></div>
         </div>
 
         <!-- Inner Screen: AI Generating Loading Screen -->
@@ -340,6 +346,9 @@
 
             <div class="timeline-container" id="timeline-places-container"></div>
 
+            <div class="add-place-trigger cand-trigger" id="btn-add-from-candidates" hidden>
+              <span>🧺 후보에서 추가</span><b>0</b>
+            </div>
             <div class="add-place-trigger" id="btn-toggle-add-place">
               <i data-icon="plus" data-size="18"></i><span>이 날에 장소 추가</span>
             </div>
@@ -798,5 +807,6 @@
   <script src="mascot.js"></script>
   <script src="ai.js"></script>
   <script src="app.js"></script>
+  <script src="picker.js"></script>
 </body>
 </html>

@@ -462,7 +462,7 @@
   async function placesText(query, lat, lng, opts = {}) {
     return placesRequest("searchText", {
       textQuery: query,
-      includedType: opts.type === "cafe" ? "cafe" : "restaurant",
+      includedType: opts.includedType === null ? undefined : (opts.includedType || (opts.type === "cafe" ? "cafe" : "restaurant")),
       pageSize: 20,
       languageCode: "ko",
       locationBias: {
@@ -543,6 +543,64 @@
     });
     if (!res.ok) throw new Error(`Google Places 오류 (${res.status})`);
     return mapPlace(await res.json());
+  }
+
+  // --- '골라서 짜기': 여행지의 볼거리·맛집·카페 등 후보를 카테고리별로 추천 ---
+  const SPOT_CATS = {
+    sightseeing: { label: "관광지", n: 10 },
+    restaurant: { label: "맛집", n: 8 },
+    cafe: { label: "카페·디저트", n: 6 },
+    shopping: { label: "쇼핑·체험", n: 6 },
+    hotel: { label: "숙소 지역", n: 3 }
+  };
+  async function suggestSpots(input, opts = {}) {
+    const only = opts.category && SPOT_CATS[opts.category] ? [opts.category] : Object.keys(SPOT_CATS);
+    const counts = only.map(c => `${c} ${opts.category ? 8 : SPOT_CATS[c].n}곳`).join(", ");
+    const styles = (input.styles || []).map(s => STYLE_LABELS[s] || s).join(", ") || "자유";
+    const prompt = [
+      "당신은 한국인 여행자를 위한 현지 여행 큐레이터입니다. 일정을 짜지 말고, 사용자가 직접 골라 담을 '후보 목록'만 추천합니다.",
+      `여행지: ${input.destination}${input.days ? `, 기간 ${input.days}일` : ""}${input.startDate ? `, 출발일 ${input.startDate}` : ""}`,
+      `일행: ${input.party || "자유"} ${input.people || 1}명, 여행 스타일: ${styles}, 소비 성향: ${BUDGET_LABELS[input.budget] || "보통"}`,
+      input.request ? `요청: ${input.request}` : "",
+      dietLine(),
+      `카테고리별 개수: ${counts}.`,
+      "- sightseeing: 꼭 볼 만한 명소·자연·전시·야경 등. 유명한 곳과 현지인이 좋아하는 곳을 섞기.",
+      "- restaurant: 실제 개별 식당 이름(지역명·○○골목 금지). cuisine(음식 종류)과 meal(lunch|dinner|any) 필수.",
+      "- cafe: 실제 카페·디저트 가게. shopping: 시장·쇼핑 거리·체험 프로그램. hotel: 숙소를 잡기 좋은 '지역'(name은 지역 이름, 예: 해운대 해변 인근)과 그 이유.",
+      "- 출발일의 계절·날씨에 맞는 곳을 우선하고, 휴업 중이거나 사라진 곳은 제외. 실제 존재하는 곳만.",
+      opts.exclude && opts.exclude.length ? `이미 추천한 곳(제외): ${opts.exclude.slice(0, 60).join(", ")}` : "",
+      '반드시 JSON 하나만 출력: {"spots":[{"category":"sightseeing","name":"한국어 이름","searchName":"현지어/영어 이름","area":"동네·지역","lat":0,"lng":0,"description":"왜 좋은지 한 문장","duration":90,"bestTime":"오전|오후|저녁|아무때나","price":0,"tags":["야경","실내"],"cuisine":"","meal":"any"}]}',
+      "duration은 머무는 분, price는 1인 원화 정수(무료면 0), lat/lng는 실제 좌표(소수점 4자리 이상), tags는 2개 이하."
+    ].filter(Boolean).join("\n");
+    const raw = await callGemini(prompt, opts);
+    const list = (Array.isArray(raw.spots) ? raw.spots : Array.isArray(raw) ? raw : [])
+      .map(p => normalizeSpot(p))
+      .filter(Boolean)
+      .filter(p => only.includes(p.category));
+    if (!list.length) throw new Error("후보를 찾지 못했어요. 잠시 후 다시 시도해 주세요.");
+    return list;
+  }
+
+  function normalizeSpot(p) {
+    if (!p || !p.name) return null;
+    const lat = parseFloat(p.lat), lng = parseFloat(p.lng);
+    const cat = SPOT_CATS[p.category] ? p.category : (p.category === "activity" ? "shopping" : "sightseeing");
+    const dur = parseInt(p.duration, 10), price = parseInt(p.price, 10);
+    return {
+      category: cat,
+      name: String(p.name).trim().slice(0, 40),
+      searchName: p.searchName ? String(p.searchName).trim().slice(0, 60) : "",
+      area: p.area ? String(p.area).trim().slice(0, 30) : "",
+      lat: isFinite(lat) && Math.abs(lat) <= 90 && lat !== 0 ? lat : null,
+      lng: isFinite(lng) && Math.abs(lng) <= 180 && lng !== 0 ? lng : null,
+      description: p.description ? String(p.description).trim().slice(0, 120) : "",
+      duration: isFinite(dur) && dur > 0 ? Math.min(dur, 300) : ({ restaurant: 60, cafe: 50, shopping: 70, hotel: 0 }[cat] || 90),
+      bestTime: ["오전", "오후", "저녁", "아무때나"].includes(p.bestTime) ? p.bestTime : "아무때나",
+      price: isFinite(price) && price >= 0 ? price : undefined,
+      tags: Array.isArray(p.tags) ? p.tags.slice(0, 2).map(t => String(t).slice(0, 10)) : [],
+      cuisine: p.cuisine ? String(p.cuisine).trim().slice(0, 20) : "",
+      meal: ["lunch", "dinner", "any"].includes(p.meal) ? p.meal : "any"
+    };
   }
 
   async function suggestRestaurants(trip, place, opts = {}) {
@@ -720,7 +778,7 @@
     DEFAULT_MODEL,
     getSettings, saveSettings, hasApiKey,
     generateTrip, refineTrip, testApiKey,
-    searchPlaces, encodeTrip, decodeTrip, normalizeTime, normalizeMove, MOVE_MODES, suggestRestaurants,
+    searchPlaces, encodeTrip, decodeTrip, normalizeTime, normalizeMove, MOVE_MODES, suggestRestaurants, suggestSpots, SPOT_CATS,
     hasPlacesKey, placesNearby, placesText, placeDetails, placesUsage, PLACES_DAILY_LIMIT
   };
 })();
