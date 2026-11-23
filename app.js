@@ -156,8 +156,10 @@ function ensureMeals(trip) {
     const endMin = tailTransit ? tailTransit.r[0] : (d < lastDay ? 22 * 60 : (nonHotel.length ? nonHotel[nonHotel.length - 1].r[1] : list[list.length - 1].r[1]));
     // 연박이면 숙소가 첫날에만 적혀 있을 수 있어 가장 최근 숙소를 쓴다
     const prevHotel = trip.places.filter(p => p.day < d && p.category === "hotel").sort((a, b) => a.day - b.day).pop();
+    const pref = trip.meals || {};
     MEAL_SLOTS.forEach(m => {
       if (have.has(m.key)) return;
+      if (pref[m.key] === false) return; // 넣지 않기로 한 끼니
       if (m.key === "breakfast" && (d === 1 || !prevHotel)) return; // 첫날 아침은 집·이동 중
       if (m.key !== "breakfast" && (startMin > m.to - 30 || endMin < m.from + m.dur)) return; // 그 시간에 여행지에 없음
       list = day();
@@ -193,6 +195,19 @@ function ensureMeals(trip) {
       }
       if (!hasCoords(near)) near = list.map(x => x.p).find(hasCoords);
       if (!near) return;
+      // 아침을 숙소 조식으로 고른 경우: 식당 대신 '숙소 조식' (식당 자동 선택 안 함)
+      if (m.key === "breakfast" && pref.breakfast === "hotel" && prevHotel) {
+        const hb = {
+          id: `custom-meal-${d}-hotelbf-${Date.now().toString(36)}${Math.random().toString(36).slice(2, 5)}`,
+          day: d, category: "restaurant", mealSlot: m.key, name: "숙소 조식",
+          time: `${minutesToHHMM(st)} - ${minutesToHHMM(st + m.dur)}`,
+          lat: prevHotel.lat, lng: prevHotel.lng, coordChecked: true, autoTopTried: true, price: 0,
+          description: `${String(prevHotel.name || "숙소").slice(0, 20)}에서 아침 식사. 조식 포함이 아니면 근처 카페·편의점도 좋아요.`
+        };
+        trip.places.push(hb);
+        added.push(hb);
+        return;
+      }
       const nearName = String(near.name || "").replace(/^(아침|점심|저녁) 식사 · /, "").replace(/ 근처$/, "").replace(/ 숙소$/, "").replace(/\s*\([^)]*\)\s*/g, " ").trim().slice(0, 14);
       const meal = {
         id: `meal-${d}-${m.key}-${Date.now().toString(36)}${Math.random().toString(36).slice(2, 5)}`,
@@ -1248,6 +1263,7 @@ function loadItineraryTemplate(template, opts = {}) {
     places
   };
   ensurePlacePrices(state.activeTrip);
+  if (!state.activeTrip.meals) state.activeTrip.meals = loadMealPref();
   const meals = ensureMeals(state.activeTrip);
   state.activeTripDay = 1;
 
@@ -1396,6 +1412,48 @@ let generateCancelledByUser = false;
 
 const PARTY_PEOPLE = { "혼자": 1, "연인/배우자와 둘이서": 2, "친구들과": 3, "어린 자녀가 있는 가족": 4, "부모님(어르신) 모시고, 걷는 양을 줄여서": 3 };
 
+// --- 플래너: 일정에 넣을 식사 (아침: 숙소 조식/근처 맛집/안 넣음, 점심, 저녁) ---
+const MEAL_PREF_KEY = "routy_meal_pref";
+function loadMealPref() {
+  try {
+    const v = JSON.parse(localStorage.getItem(MEAL_PREF_KEY) || "null");
+    if (v && typeof v === "object") return { breakfast: v.breakfast === false ? false : (v.breakfast === "out" ? "out" : "hotel"), lunch: v.lunch !== false, dinner: v.dinner !== false };
+  } catch (e) {}
+  return { breakfast: "hotel", lunch: true, dinner: true };
+}
+function readMealPicker() {
+  const on = k => !!document.querySelector(`#meal-picker [data-meal="${k}"].on`);
+  const bf = (document.querySelector("#meal-breakfast-sub .seg-btn.on") || {}).dataset?.bf || "hotel";
+  return { breakfast: on("breakfast") ? bf : false, lunch: on("lunch"), dinner: on("dinner") };
+}
+function renderMealPicker(pref) {
+  document.querySelectorAll("#meal-picker [data-meal]").forEach(b => {
+    const v = pref[b.dataset.meal];
+    b.classList.toggle("on", !!v);
+    b.setAttribute("aria-pressed", v ? "true" : "false");
+  });
+  document.querySelectorAll("#meal-breakfast-sub [data-bf]").forEach(b => b.classList.toggle("on", b.dataset.bf === (pref.breakfast || "hotel")));
+  const sub = document.getElementById("meal-breakfast-sub");
+  if (sub) sub.hidden = !pref.breakfast;
+}
+function setupMealPicker() {
+  if (!document.getElementById("meal-picker")) return;
+  let pref = loadMealPref();
+  renderMealPicker(pref);
+  const save = () => { try { localStorage.setItem(MEAL_PREF_KEY, JSON.stringify(pref)); } catch (e) {} renderMealPicker(pref); };
+  document.querySelectorAll("#meal-picker [data-meal]").forEach(b => b.addEventListener("click", () => {
+    const k = b.dataset.meal;
+    pref = readMealPicker();
+    pref[k] = k === "breakfast" ? (pref.breakfast ? false : ((document.querySelector("#meal-breakfast-sub .seg-btn.on") || {}).dataset?.bf || "hotel")) : !pref[k];
+    save();
+  }));
+  document.querySelectorAll("#meal-breakfast-sub [data-bf]").forEach(b => b.addEventListener("click", () => {
+    pref = readMealPicker();
+    pref.breakfast = b.dataset.bf;
+    save();
+  }));
+}
+
 // --- 플래너: '이미 예매했어요' (가는 편·오는 편 시각) ---
 function bookedModeFor(dest) {
   const kind = tripKind({ destination: dest || "", title: "", places: [] });
@@ -1520,6 +1578,7 @@ function setupPlannerForm() {
   });
 
   setupBookedBox();
+  setupMealPicker();
 
   const partySel = document.getElementById("input-party");
   const peopleSel = document.getElementById("input-people");
@@ -1551,6 +1610,7 @@ function setupPlannerForm() {
       wake: document.getElementById("input-wake").value || "",
       request: document.getElementById("input-request").value.trim(),
       booked: readBookedBox(),
+      meals: readMealPicker(),
       styles: Array.from(document.querySelectorAll(".style-tags-container .style-tag.active")).map(t => t.getAttribute("data-style"))
     };
     if (input.styles.length === 0) input.styles.push("relaxing");
@@ -1637,6 +1697,7 @@ async function runGeneration(input) {
     startDate: input.startDate,
     wake: input.wake ? Object.fromEntries(Array.from({ length: input.days }, (_, i) => [i + 1, input.wake])) : undefined,
     request: input.request,
+    meals: input.meals,
     genInput: input,
     createdAt: Date.now()
   };
@@ -2766,7 +2827,7 @@ function formatMinutes(m) {
 
 
 
-const APP_VERSION = "v57";
+const APP_VERSION = "v58";
 
 // --- 목적지별 표지 색·그림 (사진 대신 저작권 걱정 없는 색과 이모지) ---
 const DEST_THEMES = [
@@ -4580,7 +4641,7 @@ async function autoPickTop(trip, opts = {}) {
 async function autoPickTopInner(trip, opts = {}) {
   const sort = window.RoutyAI.getSettings().placesSort;
   // 직접 추가한 식당(custom-)은 사용자가 고른 곳이라 자동으로 바꾸지 않음 (메뉴로 강제할 때는 포함)
-  const targets = trip.places.filter(p => ["restaurant", "cafe"].includes(p.category) && !p.googlePlaceId
+  const targets = trip.places.filter(p => ["restaurant", "cafe"].includes(p.category) && !p.googlePlaceId && !/조식/.test(p.name || "")
     && (opts.force || (!p.autoTopTried && !String(p.id).startsWith("custom-"))) && hasCoords(p));
   if (!targets.length) {
     if (opts.force) showToast("바꿀 식당이 없어요. 이미 모두 Google에서 고른 곳이에요.", 4000);

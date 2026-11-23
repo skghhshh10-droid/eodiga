@@ -393,6 +393,7 @@
       startDate: input.startDate,
       wake: input.wake ? Object.fromEntries(Array.from({ length: input.days }, (_, i) => [i + 1, input.wake])) : undefined,
       request: input.request,
+      meals: input.meals,
       title: `${input.destination} ${input.days > 1 ? `${input.days - 1}박 ${input.days}일` : "당일"} (내가 고른 곳)`,
       summary: `직접 담은 ${chosen.length}곳으로 만든 일정이에요. 시간과 순서는 자유롭게 바꾸고, '후보에서 추가'로 더 넣을 수 있어요.`,
       places,
