@@ -436,3 +436,75 @@ input[type="text"], input[type="date"], input[type="time"], select, textarea { b
   #bottom-nav .nav-item .nav-label { font-size: 15px; }
 }
 .dm-land.main { stroke-width: 1.2; }
+
+/* =========================================================
+   AI 플래너: 'AI가 다 짜기' / '골라서 짜기'
+   ========================================================= */
+.plan-mode { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin: 0 0 6px; }
+.plan-mode-btn {
+  display: flex; flex-direction: column; align-items: center; gap: 2px;
+  border: 1px solid var(--border-color); background: var(--card-bg); color: var(--text-color);
+  border-radius: 16px; padding: 12px 8px; cursor: pointer; font-family: var(--font-ui);
+}
+.plan-mode-btn span { font-size: 16px; font-weight: 700; }
+.plan-mode-btn small { font-size: 12px; color: var(--text-muted); }
+.plan-mode-btn.on { border-color: var(--primary-solid); background: var(--primary-light); color: var(--primary-solid); box-shadow: 0 0 0 1px var(--primary-solid) inset; }
+.plan-mode-btn.on small { color: var(--primary-solid); }
+.plan-mode-hint { font-size: 13px; color: var(--text-muted); margin: 4px 2px 14px; line-height: 1.5; }
+
+/* 후보 고르기 */
+.pick-board { padding-bottom: 96px; }
+.pick-board[hidden] { display: none; }
+.pk-head { margin: 4px 0 12px; }
+.pk-back { border: 0; background: none; color: var(--primary-solid); font-weight: 700; font-size: 14px; padding: 4px 0; cursor: pointer; font-family: var(--font-ui); }
+.pk-title { font-size: 22px; font-weight: 800; margin-top: 4px; color: var(--text-color); }
+.pk-sub { font-size: 14px; color: var(--text-muted); margin-top: 2px; }
+.pk-tabs { display: flex; gap: 6px; overflow-x: auto; padding: 2px 0 10px; scrollbar-width: none; position: sticky; top: 0; background: var(--bg-device); z-index: 5; }
+.pk-tabs::-webkit-scrollbar { display: none; }
+.pk-tab { flex: 0 0 auto; border: 1px solid var(--border-color); background: var(--card-bg); color: var(--text-color); border-radius: 999px; padding: 8px 14px; font-size: 14px; font-weight: 600; cursor: pointer; font-family: var(--font-ui); }
+.pk-tab b { display: inline-block; min-width: 18px; margin-left: 2px; padding: 0 5px; border-radius: 999px; background: var(--primary-solid); color: #fff; font-size: 11px; }
+.pk-tab.on { background: var(--text-color); color: var(--bg-device); border-color: var(--text-color); }
+.pk-note { font-size: 13px; color: var(--text-muted); background: var(--card-bg); border: 1px dashed var(--border-color); border-radius: 14px; padding: 10px 12px; margin-bottom: 10px; line-height: 1.5; }
+.pk-list { display: flex; flex-direction: column; gap: 10px; }
+.pk-card {
+  display: flex; gap: 12px; align-items: flex-start; padding: 14px; border-radius: 18px;
+  background: var(--card-bg); border: 1px solid var(--border-color); box-shadow: var(--shadow-sm);
+  transition: border-color 0.15s ease, background 0.15s ease;
+}
+.pk-card.on { border-color: var(--primary-solid); background: var(--primary-light); }
+.pk-emoji { width: 36px; height: 36px; flex-shrink: 0; display: grid; place-items: center; border-radius: 12px; background: var(--bg-device); font-size: 18px; }
+.pk-main { flex: 1; min-width: 0; }
+.pk-name { font-size: 16px; font-weight: 700; color: var(--text-color); text-decoration: none; }
+.pk-name span { color: var(--text-muted); font-size: 12px; }
+.pk-meta { font-size: 12.5px; color: var(--text-muted); margin-top: 3px; }
+.pk-desc { font-size: 14px; color: var(--text-color); margin-top: 5px; line-height: 1.45; }
+.pk-tags { display: flex; gap: 6px; margin-top: 6px; flex-wrap: wrap; }
+.pk-tags span { font-size: 11.5px; color: var(--primary-solid); background: var(--primary-light); padding: 1px 8px; border-radius: 999px; }
+.pk-add {
+  flex-shrink: 0; align-self: center; border: 1px solid var(--primary-solid); color: var(--primary-solid); background: var(--card-bg);
+  border-radius: 999px; padding: 8px 12px; font-size: 13px; font-weight: 700; cursor: pointer; font-family: var(--font-ui); white-space: nowrap;
+}
+.pk-card.on .pk-add { background: var(--primary-solid); color: #fff; }
+.pk-empty { text-align: center; color: var(--text-muted); padding: 24px 8px; font-size: 14px; }
+.pk-more { margin-top: 12px; }
+.pk-bar {
+  position: sticky; bottom: 8px; margin-top: 14px; display: flex; align-items: center; gap: 10px;
+  padding: 10px 10px 10px 16px; border-radius: 999px; background: var(--card-bg); border: 1px solid var(--border-color);
+  box-shadow: 0 8px 24px rgba(30, 25, 40, 0.12); z-index: 6;
+}
+.pk-bar-text { flex: 1; min-width: 0; font-size: 13px; color: var(--text-muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.pk-bar-text b { color: var(--text-color); font-size: 15px; }
+.pk-bar .btn { flex-shrink: 0; height: 44px; padding: 0 18px; }
+@media (min-width: 700px) { .pick-board { max-width: 720px; margin: 0 auto; } }
+
+/* 일정 화면: 후보에서 추가 */
+.cand-trigger { justify-content: space-between; border-style: solid !important; border-color: var(--primary-solid) !important; color: var(--primary-solid) !important; }
+.cand-trigger[hidden] { display: none !important; }
+.cand-trigger b { font-size: 12px; background: var(--primary-solid); color: #fff; border-radius: 999px; padding: 1px 8px; }
+.pk-sheet-overlay { position: fixed; inset: 0; background: var(--overlay-bg); z-index: 2000; display: flex; align-items: flex-end; justify-content: center; }
+.pk-sheet { width: 100%; max-width: 640px; max-height: 80vh; background: var(--bg-device); border-radius: 24px 24px 0 0; display: flex; flex-direction: column; padding-bottom: var(--safe-b, 0px); }
+.pk-sheet-head { display: flex; align-items: center; justify-content: space-between; padding: 16px 18px 10px; font-size: 17px; color: var(--text-color); }
+.pk-close { border: 0; background: var(--card-bg); width: 34px; height: 34px; border-radius: 50%; cursor: pointer; color: var(--text-color); }
+.pk-sheet-body { overflow-y: auto; padding: 0 14px 18px; display: flex; flex-direction: column; gap: 8px; }
+.pk-sheet-body h4 { margin: 10px 2px 2px; font-size: 14px; color: var(--text-muted); }
+@media (min-width: 700px) { .pk-sheet-overlay { align-items: center; } .pk-sheet { border-radius: 24px; } }

@@ -193,7 +193,7 @@ function ensureMeals(trip) {
       }
       if (!hasCoords(near)) near = list.map(x => x.p).find(hasCoords);
       if (!near) return;
-      const nearName = String(near.name || "").replace(/\s*\([^)]*\)\s*/g, " ").trim().slice(0, 14);
+      const nearName = String(near.name || "").replace(/^(아침|점심|저녁) 식사 · /, "").replace(/ 근처$/, "").replace(/ 숙소$/, "").replace(/\s*\([^)]*\)\s*/g, " ").trim().slice(0, 14);
       const meal = {
         id: `meal-${d}-${m.key}-${Date.now().toString(36)}${Math.random().toString(36).slice(2, 5)}`,
         day: d, category: "restaurant", mealSlot: m.key,
@@ -1558,6 +1558,11 @@ function setupPlannerForm() {
       showToast("여행 목적지를 입력해 주세요.");
       return;
     }
+    // '골라서 짜기'면 일정 대신 후보 목록부터
+    if (window.getPlanMode && window.getPlanMode() === "pick") {
+      await window.startPickPlanner(input);
+      return;
+    }
     const trip = await runGeneration(input);
     if (trip) {
       document.getElementById("input-destination").value = "";
@@ -2761,7 +2766,7 @@ function formatMinutes(m) {
 
 
 
-const APP_VERSION = "v56";
+const APP_VERSION = "v57";
 
 // --- 목적지별 표지 색·그림 (사진 대신 저작권 걱정 없는 색과 이모지) ---
 const DEST_THEMES = [
@@ -4955,6 +4960,7 @@ function renderItineraryAll() {
   renderTimeline();
   updateMapMarkers();
   updateSaveButton();
+  if (window.renderCandidateTrigger) window.renderCandidateTrigger();
 }
 
 function showItineraryView() {
