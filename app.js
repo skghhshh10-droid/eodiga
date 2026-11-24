@@ -110,11 +110,69 @@ function getDeterministicPrice(placeName, category, budgetTier) {
 
 // --- 끼니 채우기: 아침(숙박 다음 날부터)·점심·저녁이 빠진 날에 식사 자리를 넣는다 ---
 // 넣은 자리는 이름이 '점심 식사 · ○○ 근처'이고, Places 키가 있으면 주변 Google 1위 식당으로 자동 교체된다
+// 끼니 시간대: 식사 전체가 이 안에 들어가게 배치 (조식 07~09시, 중식 12~14시, 석식 18~20시)
 const MEAL_SLOTS = [
-  { key: "breakfast", label: "아침", from: 7 * 60, to: 10 * 60, dur: 45, query: "breakfast", re: /아침|조식|브런치|아점|breakfast|brunch/i },
-  { key: "lunch", label: "점심", from: 11 * 60 + 30, to: 14 * 60, dur: 60, query: "", re: /점심|런치|브런치|아점|lunch|brunch/i },
-  { key: "dinner", label: "저녁", from: 17 * 60 + 30, to: 20 * 60, dur: 70, query: "", re: /저녁|디너|석식|dinner/i }
+  { key: "breakfast", label: "아침", from: 7 * 60, to: 9 * 60, dur: 45, query: "breakfast", re: /아침|조식|브런치|아점|breakfast|brunch/i },
+  { key: "lunch", label: "점심", from: 12 * 60, to: 14 * 60, dur: 60, query: "", re: /점심|런치|중식|브런치|아점|lunch|brunch/i },
+  { key: "dinner", label: "저녁", from: 18 * 60, to: 20 * 60, dur: 70, query: "", re: /저녁|디너|석식|dinner/i }
 ];
+
+function mealWindowOf(p) {
+  if (!p || p.category !== "restaurant" || p.noMealWindow) return null;
+  if (p.mealSlot) return MEAL_SLOTS.find(m => m.key === p.mealSlot) || null;
+  const named = MEAL_SLOTS.filter(m => m.re.test(p.name || ""));
+  if (named.length > 1) return null; // 브런치·아점처럼 두 끼에 걸치면 건드리지 않음
+  if (named.length === 1) return named[0];
+  // 이름에 끼니 표시가 없으면, 끼니 시간 근처(앞 90분·뒤 60분)일 때만 식사로 본다 (오후 간식 등은 그대로)
+  const r = parseTimeRange(p.time);
+  if (!r) return null;
+  return MEAL_SLOTS.find(m => r[0] >= m.from - 90 && r[0] <= m.to + 60) || null;
+}
+
+// 식사를 정해진 시간대 안으로 옮기고, 겹치는 앞뒤 일정은 밀거나 줄인다
+function alignMealWindows(trip) {
+  if (!trip || !Array.isArray(trip.places)) return false;
+  let changed = false;
+  const days = trip.days || Math.max(1, ...trip.places.map(p => p.day || 1));
+  const fixed = p => !!p.intercity || (p.category === "transit" && STOP_RE.test(p.name || ""));
+  const setTime = (p, a, b) => { p.time = `${minutesToHHMM(a)} - ${minutesToHHMM(b)}`; };
+  for (let d = 1; d <= days; d++) {
+    const all = trip.places.filter(p => p.day === d);
+    all.forEach(p => {
+      const W = mealWindowOf(p), r = parseTimeRange(p.time);
+      if (!W || !r) return;
+      const dur = Math.min(Math.max(r[1] - r[0], 30), W.to - W.from);
+      const st = Math.min(Math.max(r[0], W.from), W.to - dur);
+      if (st !== r[0] || st + dur !== r[1]) { setTime(p, st, st + dur); changed = true; }
+    });
+    for (let guard = 0; guard < 40; guard++) {
+      const list = all.map(p => ({ p, r: parseTimeRange(p.time) })).filter(x => x.r)
+        .sort((a, b) => a.r[0] - b.r[0] || (mealWindowOf(a.p) ? -1 : 1));
+      let moved = false;
+      for (let i = 1; i < list.length; i++) {
+        const a = list[i - 1], b = list[i];
+        if (b.r[0] >= a.r[1]) continue;
+        const aW = mealWindowOf(a.p), bW = mealWindowOf(b.p);
+        if (bW) {
+          const dur = b.r[1] - b.r[0];
+          if (a.r[1] + 10 + dur <= bW.to) setTime(b.p, a.r[1] + 10, a.r[1] + 10 + dur);            // 식사를 조금 늦춤
+          else if (!aW && !fixed(a.p) && b.r[0] - 10 - a.r[0] >= 30) setTime(a.p, a.r[0], b.r[0] - 10); // 앞 일정을 줄임
+          else if (!aW && !fixed(a.p)) setTime(a.p, b.r[1] + 10, b.r[1] + 10 + (a.r[1] - a.r[0])); // 앞 일정을 식사 뒤로
+          else continue;
+        } else if (!fixed(b.p)) {
+          setTime(b.p, a.r[1] + 10, a.r[1] + 10 + (b.r[1] - b.r[0]));                                 // 뒤 일정을 밂
+        } else if (!aW && !fixed(a.p)) {
+          setTime(a.p, a.r[0], Math.max(a.r[0] + 20, b.r[0] - 10));
+        } else continue;
+        changed = moved = true;
+        break;
+      }
+      if (!moved) break;
+    }
+    sortTripPlaces(trip, d);
+  }
+  return changed;
+}
 
 function mealOf(p) {
   if (p.category !== "restaurant") return [];
@@ -166,16 +224,15 @@ function ensureMeals(trip) {
       let st, near;
       if (m.key === "breakfast") {
         const first = list.find(x => x.p.category !== "hotel") || list[0];
-        const end = Math.min(first.r[0] - 10, m.to);
-        st = end - m.dur;
-        if (st < 6 * 60 + 30) return;
+        // 조식 시간대(07~09시) 안에서, 첫 일정 전에 끝나도록 (안 되면 시간대 끝에 넣고 뒤 일정을 밂)
+        st = Math.max(m.from, Math.min(m.to - m.dur, first.r[0] - 10 - m.dur));
         near = prevHotel || first.p;
       } else {
         // 끼니 시간대 안의 빈틈을 먼저 찾고, 없으면 그 시간에 끼워 넣고 뒤 일정을 민다
         let gapFound = null;
         for (let i = 0; i <= list.length; i++) {
           const gs = Math.max(i ? list[i - 1].r[1] + 10 : startMin, m.from, startMin);
-          const ge = Math.min(i < list.length ? list[i].r[0] - 10 : endMin, m.to + m.dur);
+          const ge = Math.min(i < list.length ? list[i].r[0] - 10 : endMin, m.to);
           if (ge - gs >= m.dur) { gapFound = { st: gs, near: (i ? list[i - 1] : list[i] || list[0]).p }; break; }
         }
         if (gapFound) { st = gapFound.st; near = gapFound.near; }
@@ -183,7 +240,7 @@ function ensureMeals(trip) {
           // 끼니 시작 시각에 진행 중인 일정이 있으면 그 뒤에, 아니면 끼니 시각에 넣고 겹치는 뒤 일정을 민다
           const fixed = x => x.p.intercity || trail.includes(x) || (d === 1 && x.r[1] <= startMin && x.p.category === "transit");
           const covering = list.find(x => x.p.category !== "hotel" && x.r[0] <= m.from && x.r[1] > m.from);
-          st = Math.max(covering ? covering.r[1] + 10 : m.from, startMin);
+          st = Math.min(Math.max(covering ? covering.r[1] + 10 : m.from, startMin, m.from), m.to - m.dur);
           near = covering ? covering.p : (list.filter(x => x.r[0] < st && x.p.category !== "hotel").pop() || list[0]).p;
           const next = list.find(x => x !== covering && x.r[1] > st && !fixed(x));
           const shift = next ? st + m.dur + 10 - next.r[0] : 0;
@@ -224,6 +281,8 @@ function ensureMeals(trip) {
     sortTripPlaces(trip, d);
   }
   if (added.length) ensurePlacePrices(trip);
+  alignMealWindows(trip);
+  trip.mealWin1 = true;
   return added;
 }
 
@@ -2827,7 +2886,7 @@ function formatMinutes(m) {
 
 
 
-const APP_VERSION = "v58";
+const APP_VERSION = "v59";
 
 // --- 목적지별 표지 색·그림 (사진 대신 저작권 걱정 없는 색과 이모지) ---
 const DEST_THEMES = [
@@ -5028,6 +5087,19 @@ function showItineraryView() {
   if (!state.activeTrip) return;
   ensureTripShape(state.activeTrip);
   ensurePlacePrices(state.activeTrip);
+  // 예전에 만든 일정: 식사를 정해진 시간대(조식 07~09·중식 12~14·석식 18~20)로 한 번 맞춤
+  if (state.activeTrip.mealsChecked && !state.activeTrip.mealWin1) {
+    const before = cloneTrip(state.activeTrip);
+    const moved = alignMealWindows(state.activeTrip);
+    state.activeTrip.mealWin1 = true;
+    persistActiveTrip();
+    if (moved) {
+      setTimeout(() => showToast("식사 시간을 조식 7~9시, 중식 12~14시, 석식 18~20시 안으로 맞췄어요.", 6000, {
+        label: "되돌리기",
+        onClick: () => { before.mealWin1 = true; state.activeTrip = before; renderItineraryAll(); persistActiveTrip(); }
+      }), 400);
+    }
+  }
   // 예전에 만든 일정: 한 번만 빠진 끼니를 채우고 알려 줌 (되돌리기 가능)
   if (!state.activeTrip.mealsChecked) {
     const before = cloneTrip(state.activeTrip);
