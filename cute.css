@@ -627,3 +627,10 @@ html[data-theme="dark"] #bottom-nav { background: #25242E; box-shadow: 0 -1px 0 
 html[data-theme="dark"] .btn-primary { color: #0F1F24 !important; }
 html[data-theme="dark"] .dm-sea { fill: #0E2A33; }
 html[data-theme="dark"] .dm-land.main { fill: #24343A; stroke: #3E5A61; }
+
+/* 홈 상단: 진한 상자 없애고 배경 위에 바로 (A안) */
+#screen-explore .search-section { background: transparent !important; box-shadow: none !important; padding: 4px 0 6px !important; border-radius: 0; }
+[data-theme="dark"] #screen-explore .search-section { background: transparent !important; }
+#screen-explore .mascot-bubble { background: var(--card-bg) !important; box-shadow: var(--shadow-sm) !important; border: 1px solid var(--border-color) !important; }
+#screen-explore .search-pill-box { border: 1.5px solid var(--brand-deep) !important; box-shadow: var(--shadow-sm) !important; }
+[data-theme="dark"] #screen-explore .search-pill-box { border-color: var(--primary-solid) !important; }

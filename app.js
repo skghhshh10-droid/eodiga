@@ -2886,7 +2886,7 @@ function formatMinutes(m) {
 
 
 
-const APP_VERSION = "v62";
+const APP_VERSION = "v63";
 
 // --- 목적지별 표지 색·그림 (사진 대신 저작권 걱정 없는 색과 이모지) ---
 const DEST_THEMES = [
