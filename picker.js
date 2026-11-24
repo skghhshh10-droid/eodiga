@@ -334,22 +334,22 @@
         const dur0 = s.duration || 90;
         // 저녁에 볼 곳(야경 등): 점심·저녁을 먼저 넣고 해 진 뒤(19시)에
         if (rank(s) === 2 && cur < 18 * 60 + 30) {
-          if (!lunchDone && cur <= 14 * 60) { cur = push(lunch, Math.max(cur, 11 * 60 + 30), 60) + 20; lunchDone = true; }
-          if (!dinnerDone) { cur = push(dinner2, Math.max(cur, 17 * 60 + 30), 70) + 20; dinnerDone = true; }
+          if (!lunchDone && cur <= 13 * 60) { cur = push(lunch, Math.max(cur, 12 * 60), 60) + 20; lunchDone = true; }
+          if (!dinnerDone) { cur = push(dinner2, Math.min(Math.max(cur, 18 * 60), 18 * 60 + 50), 70) + 20; dinnerDone = true; }
           cur = Math.max(cur, 19 * 60);
         }
-        if (!lunchDone && (cur >= 11 * 60 + 30 || (cur >= 11 * 60 && cur + dur0 > 13 * 60 + 30) || (rank(s) === 2 && cur < 15 * 60))) {
-          cur = push(lunch, Math.max(cur, 11 * 60 + 30), 60) + 20; lunchDone = true;
+        if (!lunchDone && (cur >= 12 * 60 || (cur >= 11 * 60 + 30 && cur + dur0 > 13 * 60) || (rank(s) === 2 && cur < 15 * 60))) {
+          cur = push(lunch, Math.min(Math.max(cur, 12 * 60), 13 * 60), 60) + 20; lunchDone = true;
         }
-        if (!dinnerDone && (cur >= 17 * 60 + 30 || (rank(s) === 2 && cur >= 16 * 60 + 30))) { cur = push(dinner2, Math.max(cur, 17 * 60 + 30), 70) + 20; dinnerDone = true; }
+        if (!dinnerDone && (cur >= 18 * 60 || (rank(s) === 2 && cur >= 16 * 60 + 30))) { cur = push(dinner2, Math.min(Math.max(cur, 18 * 60), 18 * 60 + 50), 70) + 20; dinnerDone = true; }
         if (cur + s.duration > end && places.some(p => p.day === d)) {
           // 그날 시간이 모자라면 다음 날로 넘김
           if (d < days) { (groups[d] = groups[d] || []).unshift(s); continue; }
         }
         cur = push(s, cur, s.duration || 90) + 20;
       }
-      if (!lunchDone && (d < days || end >= 13 * 60)) { cur = push(lunch, Math.max(cur, 12 * 60), 60) + 20; lunchDone = true; }
-      if (!dinnerDone && (d < days || end >= 19 * 60)) { cur = push(dinner2, Math.max(cur, 18 * 60), 70) + 20; dinnerDone = true; }
+      if (!lunchDone && (d < days || end >= 13 * 60)) { cur = push(lunch, Math.min(Math.max(cur, 12 * 60), 13 * 60), 60) + 20; lunchDone = true; }
+      if (!dinnerDone && (d < days || end >= 19 * 60)) { cur = push(dinner2, Math.min(Math.max(cur, 18 * 60), 18 * 60 + 50), 70) + 20; dinnerDone = true; }
       if (stay && d < days) {
         places.push({
           id: `custom-pick-stay-${d}-${Math.random().toString(36).slice(2, 6)}`,
@@ -366,7 +366,7 @@
       places.push({
         id: `custom-pick-extra-${i}-${Math.random().toString(36).slice(2, 6)}`,
         day: d, name: m.name, category: "restaurant", time: "15:30 - 16:20", lat: m.lat, lng: m.lng,
-        description: m.description || "", cuisine: m.cuisine || undefined, price: m.price, fromPick: true, autoTopTried: true
+        description: m.description || "", cuisine: m.cuisine || undefined, price: m.price, fromPick: true, autoTopTried: true, noMealWindow: true
       });
     });
     return places;
