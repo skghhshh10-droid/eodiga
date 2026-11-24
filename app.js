@@ -2886,7 +2886,7 @@ function formatMinutes(m) {
 
 
 
-const APP_VERSION = "v63";
+const APP_VERSION = "v64";
 
 // --- 목적지별 표지 색·그림 (사진 대신 저작권 걱정 없는 색과 이모지) ---
 const DEST_THEMES = [
@@ -4431,7 +4431,7 @@ function naverRouteBtnHtml(from, to, mode) {
   if (!hasCoords(from) || !hasCoords(to)) return "";
   if (!isInKorea(from.lat, from.lng) || !isInKorea(to.lat, to.lng)) return "";
   const type = naverRouteType(mode, state.activeTrip);
-  return `<button class="move-route" data-action="naviroute" data-from="${esc(from.id)}" data-id="${esc(to.id)}">${window.icon("navigate", 14)}${NAVER_ROUTE_LABEL[type]}</button>`;
+  return `<button class="move-route" data-action="naviroute" data-from="${esc(from.id)}" data-id="${esc(to.id)}">${window.icon("navigate", 13)}경로</button>`.replace('class="move-route"', `class="move-route" aria-label="${NAVER_ROUTE_LABEL[type]}"`);
 }
 
 function isTouchDevice() {
@@ -4744,7 +4744,7 @@ async function autoPickTopInner(trip, opts = {}) {
   }
   if (opts.force && !picked && !stopped) showToast("주변에서 조건(식성·가격대)에 맞는 곳을 찾지 못해 그대로 뒀어요.", 5000);
   if (picked) showToast(`식당 ${picked}곳을 Google ${sort === "count" ? "리뷰수" : "별점"} 1위로 골랐어요. 'TOP 5'에서 바꿀 수 있어요.`, 5000);
-  else if (stopped) showToast(`Google 식당 조회를 못 했어요: ${stopped}`, 5000);
+  else if (stopped) { console.warn("Places:", stopped); showToast(/키/.test(stopped) ? "식당 추천을 쓰려면 설정에서 지도·식당 검색 키를 넣어 주세요." : "식당 추천을 지금은 불러오지 못했어요. 일정은 그대로 쓸 수 있어요.", 3500); }
 }
 
 function renderAutoTopStatus(text) {
@@ -4928,12 +4928,12 @@ let refineScope = "day";
 function updateRefineScopeLabel() {
   const btn = document.getElementById("btn-refine-scope");
   if (!btn || !state.activeTrip) return;
-  btn.textContent = refineScope === "day" ? `Day ${state.activeTripDay}만` : "전체";
+  btn.textContent = refineScope === "day" ? `Day ${state.activeTripDay} ▾` : "전체 ▾";
   btn.classList.toggle("is-all", refineScope === "all");
   const input = document.getElementById("ai-refine-input");
   input.placeholder = refineScope === "day"
-    ? `Day ${state.activeTripDay} 수정 요청 (예: 오후는 실내 위주로)`
-    : "전체 일정 수정 요청 (예: 하루 더 여유롭게)";
+    ? "이 날 바꿀 점 적기"
+    : "전체 바꿀 점 적기";
 }
 
 // --- AI 좌표 검증: OpenStreetMap에서 실제 위치를 찾아 크게 다르면 보정 ---
@@ -5517,7 +5517,6 @@ function renderTimeline() {
           ${coordWarn ? `<div>${coordWarn}</div>` : ""}
           <div class="timeline-actions">
             ${place.intercity === "back" ? "" : `<button class="chip-btn chip-navi" data-action="navi" data-id="${id}">${window.icon("navigate", 16)}길안내</button>`}
-            <button class="chip-btn" data-action="map" data-id="${id}">${window.icon("map", 16)}지도</button>
             ${contextChip}
             <button class="chip-btn chip-icon chip-more ${moreOpen ? "on" : ""}" data-action="more" data-id="${id}" aria-label="더보기" aria-expanded="${moreOpen}">${window.icon("more", 18)}</button>
             <span class="edit-only-actions">
@@ -5527,6 +5526,7 @@ function renderTimeline() {
             </span>
           </div>
           ${moreOpen ? `<div class="timeline-actions more-row">
+            <button class="chip-btn" data-action="map" data-id="${id}">${window.icon("map", 16)}지도</button>
             ${isTransit ? "" : `<button class="chip-btn" data-action="search" data-id="${id}">${window.icon("search", 16)}${searchLabel}</button>`}
             <button class="chip-btn" data-action="edit" data-id="${id}">${window.icon("pencil", 16)}편집</button>
             ${altInMore}
