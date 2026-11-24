@@ -661,3 +661,36 @@ body:has(#screen-itinerary.active) #bottom-nav { display: none !important; }
   color: var(--primary-solid) !important; font-weight: 700; text-decoration: underline; text-underline-offset: 3px;
 }
 .tl2-wrap > .move-connector .move-route .ic { color: var(--primary-solid) !important; }
+
+/* =========================================================
+   홈: 작은 지도 + 옆으로 넘기는 코스 카드 (v65)
+   ========================================================= */
+#dest-map-wrap { --dm-h: 28vh; background: #D7EDF2; border-radius: 22px; border: 1px solid var(--border-color); overflow: hidden; margin-bottom: 12px; max-width: 760px; margin-left: auto; margin-right: auto; }
+#dest-map-wrap:empty { display: none; }
+html[data-theme="dark"] #dest-map-wrap { background: #0E2A33; }
+#dest-map-wrap .dest-map { max-width: min(100%, calc(var(--dm-h) * var(--dm-ar))) !important; border: none !important; border-radius: 0 !important; box-shadow: none !important; }
+@media (min-width: 700px) { #dest-map-wrap { --dm-h: 40vh; } }
+#dest-map-wrap .dm-pin { transform-origin: 50% 100%; }
+
+/* 코스 카드 줄 */
+#templates-container.tpl-rail {
+  display: flex !important; flex-direction: row !important; flex-wrap: nowrap !important; grid-template-columns: none !important; gap: 12px; overflow-x: auto; scroll-snap-type: x mandatory; scrollbar-width: none;
+  margin: 0 -16px; padding: 4px 16px 14px; max-width: none; scroll-padding: 0 16px;
+}
+#templates-container.tpl-rail::-webkit-scrollbar { display: none; }
+#templates-container.tpl-rail .template-card {
+  flex: 0 0 auto !important; width: min(82%, 340px) !important; min-width: 0; scroll-snap-align: center; margin: 0 !important; display: flex; flex-direction: column;
+  transition: box-shadow .2s, outline-color .2s; outline: 2px solid transparent; outline-offset: -2px;
+}
+#templates-container.tpl-rail .template-card.pick { outline-color: var(--primary-solid); }
+#templates-container.tpl-rail .tpl-cover { height: 96px; }
+#templates-container.tpl-rail .template-desc-single { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+#templates-container.tpl-rail .tpl-go { margin-top: auto; padding-top: 8px; }
+@media (min-width: 700px) {
+  #templates-container.tpl-rail { margin: 0 auto; padding: 4px 2px 14px; max-width: 760px; }
+  #templates-container.tpl-rail .template-card { width: 300px !important; }
+}
+/* 작은 지도에서는 핀도 작게 */
+#dest-map-wrap .dm-pin-emoji { width: calc(40px * var(--pin-s, 1)); height: calc(40px * var(--pin-s, 1)); font-size: calc(21px * var(--pin-s, 1)); border-width: 2px; }
+#dest-map-wrap .dm-pin-name { font-size: max(10px, calc(12px * var(--pin-s, 1))); padding: 1px 6px; }
+#dest-map-wrap .dm-origin-label { font-size: 10px; }

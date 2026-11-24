@@ -1133,11 +1133,18 @@ function renderHomeMap(list, matchKeys) {
   const shown = pins.filter(p => p.inside);
   const [ox0, oy0] = homeMapXY(HOME_MAP_ORIGIN.lat, HOME_MAP_ORIGIN.lng, HOME_MAP);
   const fixed = [{ bx: ox0, by: oy0 + 10 }]; // 출발 점 + 위쪽 이름표
-  const RX = 64, RY = 86; // 핀 하나가 차지하는 너비·높이(지도 단위)
+  // 지도가 화면에 그려질 크기(px)를 미리 계산해서, 핀 크기와 겹침 판정을 그 크기에 맞춘다
+  const wide = window.innerWidth >= 700;
+  const dmVh = wide ? 40 : (homeRegion === "overseas" ? 34 : 28);
+  const estW = Math.min(wrap.clientWidth || window.innerWidth - 32, Math.min(760, window.innerHeight * dmVh / 100 * HOME_MAP.W / HOME_MAP.H));
+  const pinScale = Math.max(0.68, Math.min(1, estW / 360));
+  const upp = HOME_MAP.W / Math.max(estW, 1); // 지도 단위 / px
+  const RX = 38 * pinScale * upp, RY = 50 * pinScale * upp; // 핀 하나가 차지하는 너비·높이(지도 단위)
   const hits = (x, y, others) => others.some(q => Math.hypot((x - q.bx) / RX, (y - q.by) / RY) < 1);
-  const fits = (x, y) => x >= 28 && x <= HOME_MAP.W - 28 && y >= 84 && y <= HOME_MAP.H - 4;
+  const fits = (x, y) => x >= 17 * upp && x <= HOME_MAP.W - 17 * upp && y >= 48 * pinScale * upp && y <= HOME_MAP.H - 3 * upp;
   // 실제 위치에서 가까운 빈자리부터: 그대로 → 아래(바다 쪽) → 옆 → 위
-  const SPOTS = [[0, 0], [44, 52], [-44, 52], [70, 10], [-70, 10], [0, 92], [80, 70], [-80, 70], [60, -60], [-60, -60], [0, -90], [110, 30], [-110, 30]];
+  const SPOTS = [[0, 0], [44, 52], [-44, 52], [70, 10], [-70, 10], [0, 92], [80, 70], [-80, 70], [60, -60], [-60, -60], [0, -90], [110, 30], [-110, 30]]
+    .map(([dx, dy]) => [dx * pinScale * upp / 1.67, dy * pinScale * upp / 1.67]);
   const placed = fixed.slice();
   shown.forEach(p => {
     if (p.manual) { placed.push(p); return; }
@@ -1153,7 +1160,7 @@ function renderHomeMap(list, matchKeys) {
   const { W, H } = HOME_MAP;
   const pct = (v, total) => (v / total * 100).toFixed(2) + "%";
   wrap.innerHTML = `
-    <div class="dest-map" style="aspect-ratio:${W}/${H};max-width:min(760px, ${(64 * W / H).toFixed(1)}vh)">
+    <div class="dest-map" style="aspect-ratio:${W}/${H};--dm-ar:${(W / H).toFixed(4)};--dm-h:${dmVh}vh;--pin-s:${pinScale.toFixed(2)}">
       <svg viewBox="0 0 ${W} ${H}" preserveAspectRatio="none" aria-hidden="true">
         <defs>
           <pattern id="dm-waves" width="28" height="14" patternUnits="userSpaceOnUse">
@@ -1178,16 +1185,53 @@ function renderHomeMap(list, matchKeys) {
           <span class="dm-pin-emoji"><i>${p.th.emoji}</i></span>
         </button>`).join("")}
     </div>
-    <div class="dm-chips" role="tablist">
-      ${pins.map(p => `<button type="button" role="tab" class="dm-chip ${homeMapPick === p.t.id ? "pick" : ""} ${p.on ? "" : "off"}" data-tpl="${esc(p.t.id)}" aria-selected="${homeMapPick === p.t.id}">${p.th.emoji} ${esc(p.t.destination.replaceAll("/", "·"))}</button>`).join("")}
-    </div>
   `;
   wrap.querySelectorAll("[data-tpl]").forEach(b => b.addEventListener("click", () => {
-    homeMapPick = b.dataset.tpl;
-    renderTemplates();
+    setHomePick(b.dataset.tpl, { scrollCard: true });
   }));
-  const chip = wrap.querySelector(".dm-chip.pick");
-  if (chip) chip.parentElement.scrollTo({ left: chip.offsetLeft - 8, behavior: "smooth" });
+}
+
+// 지도 핀 ↔ 아래 코스 카드 연결 (다시 그리지 않고 강조만 바꿈)
+function setHomePick(id, opts = {}) {
+  if (!id) return;
+  homeMapPick = id;
+  const wrap = document.getElementById("dest-map-wrap");
+  if (wrap) {
+    wrap.querySelectorAll(".dm-pin").forEach(el => el.classList.toggle("pick", el.dataset.tpl === id));
+    const order = [...wrap.querySelectorAll(".dm-pin")].map(el => el.dataset.tpl);
+    wrap.querySelectorAll(".dm-route").forEach((el, i) => el.classList.toggle("pick", order[i] === id));
+  }
+  const rail = document.querySelector("#templates-container.tpl-rail");
+  if (!rail) return;
+  rail.querySelectorAll(".template-card").forEach(el => el.classList.toggle("pick", el.dataset.tpl === id));
+  if (opts.scrollCard) {
+    const card = rail.querySelector(`.template-card[data-tpl="${CSS.escape(id)}"]`);
+    if (card) {
+      homeRailLock = Date.now();
+      const rr = rail.getBoundingClientRect(), cr = card.getBoundingClientRect();
+      rail.scrollTo({ left: rail.scrollLeft + (cr.left - rr.left) - (rr.width - cr.width) / 2, behavior: opts.instant ? "auto" : "smooth" });
+    }
+  }
+}
+let homeRailLock = 0;
+function setupHomeRail(rail) {
+  let t = null;
+  rail.addEventListener("scroll", () => {
+    clearTimeout(t);
+    t = setTimeout(() => {
+      if (Date.now() - homeRailLock < 600) return;
+      const rr = rail.getBoundingClientRect();
+      const mid = rr.left + rr.width / 2;
+      let best = null, bd = Infinity;
+      rail.querySelectorAll(".template-card").forEach(el => {
+        const r = el.getBoundingClientRect();
+        const c = r.left + r.width / 2;
+        const d = Math.abs(c - mid);
+        if (d < bd) { bd = d; best = el; }
+      });
+      if (best && best.dataset.tpl !== homeMapPick) setHomePick(best.dataset.tpl);
+    }, 90);
+  }, { passive: true });
 }
 
 function renderRegionTabs() {
@@ -1210,9 +1254,9 @@ function renderRegionTabs() {
 function renderHomeTabs(batches) {
   const tabs = document.getElementById("home-tabs");
   const title = document.getElementById("home-section-title");
-  if (title) title.textContent = homePage === 2 ? "지난 추천" : (batches.current.label === "추천 코스" ? "지도에서 골라 보기" : batches.current.label);
+  if (title) title.textContent = homePage === 2 ? "지난 추천" : (batches.current.label === "추천 코스" ? "추천 코스" : batches.current.label);
   const sub = document.getElementById("home-section-sub");
-  if (sub) sub.textContent = homePage === 2 ? "예전에 나왔던 코스도 그대로 열 수 있어요" : (batches.current.headline || "핀을 누르면 그곳 코스가 나와요");
+  if (sub) sub.textContent = homePage === 2 ? "예전에 나왔던 코스도 그대로 열 수 있어요" : (batches.current.headline || "옆으로 넘기거나 핀을 눌러 보세요");
   if (!tabs) return;
   if (!batches.past.length) { tabs.innerHTML = ""; tabs.hidden = true; homePage = 1; return; }
   tabs.hidden = false;
@@ -1245,6 +1289,7 @@ function renderTemplates() {
   const mapWrap = document.getElementById("dest-map-wrap");
 
   if (homePage === 2) {
+    container.classList.remove("tpl-rail");
     if (mapWrap) mapWrap.innerHTML = "";
     container.classList.remove("single");
     container.classList.add("past-list");
@@ -1269,9 +1314,20 @@ function renderTemplates() {
   if (matches.length && !matches.some(t => t.id === homeMapPick)) homeMapPick = matches[0].id;
   renderHomeMap(all, matchKeys);
 
+  container.classList.remove("tpl-rail");
   if (matches.length) {
-    const pick = matches.find(t => t.id === homeMapPick) || matches[0];
-    container.appendChild(templateCardEl(pick));
+    container.classList.remove("single");
+    container.classList.add("tpl-rail");
+    matches.forEach(t => {
+      const el = templateCardEl(t);
+      el.dataset.tpl = t.id;
+      if (t.id === homeMapPick) el.classList.add("pick");
+      container.appendChild(el);
+    });
+    if (!container.dataset.railReady) { container.dataset.railReady = "1"; setupHomeRail(container); }
+    const pickEl = container.querySelector(".template-card.pick");
+    if (pickEl && pickEl !== container.firstElementChild) requestAnimationFrame(() => setHomePick(homeMapPick, { scrollCard: true, instant: true }));
+    else container.scrollLeft = 0;
     return;
   }
   const inPast = query && batches.past.some(b => b.templates.some(t => matchesQuery(t, query)));
@@ -2886,7 +2942,7 @@ function formatMinutes(m) {
 
 
 
-const APP_VERSION = "v64";
+const APP_VERSION = "v65";
 
 // --- 목적지별 표지 색·그림 (사진 대신 저작권 걱정 없는 색과 이모지) ---
 const DEST_THEMES = [
