@@ -1195,8 +1195,8 @@ function renderRegionTabs() {
   if (!box) return;
   const n = r => { const b = recoBatches(r); return b.current.templates.length; };
   box.innerHTML = `
-    <button type="button" class="region-tab ${homeRegion === "domestic" ? "on" : ""}" data-region="domestic">국내 <small>${n("domestic")}</small></button>
-    <button type="button" class="region-tab ${homeRegion === "overseas" ? "on" : ""}" data-region="overseas">해외 <small>${n("overseas")}</small></button>`;
+    <button type="button" class="region-tab ${homeRegion === "domestic" ? "on" : ""}" data-region="domestic">🇰🇷 국내 <small>${n("domestic")}</small></button>
+    <button type="button" class="region-tab ${homeRegion === "overseas" ? "on" : ""}" data-region="overseas">✈️ 해외 <small>${n("overseas")}</small></button>`;
   box.querySelectorAll("[data-region]").forEach(b => b.addEventListener("click", () => {
     if (homeRegion === b.dataset.region) return;
     homeRegion = b.dataset.region;
@@ -2886,7 +2886,7 @@ function formatMinutes(m) {
 
 
 
-const APP_VERSION = "v61";
+const APP_VERSION = "v60";
 
 // --- 목적지별 표지 색·그림 (사진 대신 저작권 걱정 없는 색과 이모지) ---
 const DEST_THEMES = [
