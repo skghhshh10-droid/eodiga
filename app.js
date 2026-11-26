@@ -993,7 +993,7 @@ let mascotTipIdx = -1;
 function greetingText() {
   const h = new Date().getHours();
   if (h >= 5 && h < 11) return ["좋은 아침이에요! 오늘은 어디로 떠나 볼까요?", "happy"];
-  if (h >= 11 && h < 17) return ["어디가 볼까요? 지도에서 콕 찍어 봐요!", "wink"];
+  if (h >= 11 && h < 17) return ["어디가 볼까요? 마음에 드는 코스를 골라 봐요!", "wink"];
   if (h >= 17 && h < 23) return ["저녁이에요~ 다음 여행 계획 세워 볼까요?", "happy"];
   return ["늦은 밤엔 여행 상상이 최고죠 ✨", "sleep"];
 }
@@ -1091,6 +1091,78 @@ function templateCenter(t) {
   return { lat: pts.reduce((a, p) => a + p.lat, 0) / pts.length, lng: pts.reduce((a, p) => a + p.lng, 0) / pts.length };
 }
 
+// 출발지 → 코스까지 대략적인 이동 시간 (거리로 추정, '약'으로 표시)
+function templateTravel(t, originName) {
+  const c = templateCenter(t);
+  if (!c) return null;
+  const name = originName || homeOrigin().name;
+  const key = Object.keys(CITY_COORDS).find(k => String(name).includes(k));
+  if (!key) return null;
+  const o = { lat: CITY_COORDS[key][0], lng: CITY_COORDS[key][1] };
+  const kind = tripKind({ destination: t.destination, title: t.title, places: t.places || [] });
+  const fmt = m => { m = Math.round(m / 10) * 10; const h = Math.floor(m / 60), r = m % 60; return h ? `${h}시간${r ? ` ${r}분` : ""}` : `${r}분`; };
+  if (kind === "inland") {
+    const m = estimateDriveMin(o, c);
+    return m ? { origin: key, icon: "🚗", text: `차로 약 ${fmt(m)}`, mode: "car" } : null;
+  }
+  if (kind === "island") {
+    const km = distanceMeters(o, c) / 1000;
+    return { origin: key, icon: "✈️", text: `비행 약 ${fmt(km / 600 * 60 + 25)}`, mode: "air" };
+  }
+  const viaIcn = key === "광주";
+  const from = viaIcn ? { lat: 37.4602, lng: 126.4407 } : o;
+  const km = distanceMeters(from, c) / 1000;
+  return { origin: key, icon: "✈️", text: `${viaIcn ? "인천 출발 " : ""}비행 약 ${fmt(km / 760 * 60 + 30)}`, mode: "air" };
+}
+
+// 설정 창 위쪽: 출발지 → 코스 동선 지도 (두 점이 보이게 잘라서)
+function renderRouteMap(el, t, originName) {
+  if (!el) return;
+  const c = templateCenter(t);
+  const MAP = homeMapOf(tplRegion(t));
+  const key = Object.keys(CITY_COORDS).find(k => String(originName || "").includes(k)) || homeOrigin().name;
+  if (!c || !MAP || !CITY_COORDS[key]) { el.innerHTML = ""; return; }
+  const [ox, oy] = homeMapXY(CITY_COORDS[key][0], CITY_COORDS[key][1], MAP);
+  const [dx, dy] = homeMapXY(c.lat, c.lng, MAP);
+  // 위쪽 42%는 핀·이름표 자리, 아래 18%는 여백. 두 점이 그 사이 띠에 들어오게 자른다
+  const TOP = 0.42, BOT = 0.18, SIDE = 0.14;
+  const minX = Math.min(ox, dx), maxX = Math.max(ox, dx), minY = Math.min(oy, dy), maxY = Math.max(oy, dy);
+  // 남북으로 긴 동선은 덜 납작하게 (가로:세로 1.25~2)
+  const rawAR = ((maxX - minX) / (1 - 2 * SIDE) + 1) / ((maxY - minY) / (1 - TOP - BOT) + 1);
+  const AR = Math.max(1.25, Math.min(2, rawAR));
+  let vw = Math.max((maxX - minX) / (1 - 2 * SIDE), (maxY - minY) / (1 - TOP - BOT) * AR, MAP.W * 0.3);
+  let vh = vw / AR;
+  let vx = (minX + maxX) / 2 - vw / 2;
+  if (vw <= MAP.W) vx = Math.max(0, Math.min(MAP.W - vw, vx));
+  const band = vh * (1 - TOP - BOT);
+  const vy = minY - vh * TOP - (band - (maxY - minY)) / 2;
+  // 곡선은 위쪽으로, 남북 동선이면 동쪽(바다 쪽)으로 휘게 해서 핀에 덜 가리게
+  const len = Math.hypot(dx - ox, dy - oy) || 1;
+  let nx = -(dy - oy) / len, ny = (dx - ox) / len;
+  if (Math.abs(dx - ox) >= Math.abs(dy - oy) ? ny > 0 : nx < 0) { nx = -nx; ny = -ny; }
+  const bend = Math.min(vh * 0.3, len * 0.28);
+  const mx = (ox + dx) / 2 + nx * bend, my = (oy + dy) / 2 + ny * bend;
+  const pct = (v, a, total) => ((v - a) / total * 100).toFixed(2) + "%";
+  const th = tplTheme(t);
+  const tv = templateTravel(t, key);
+  const sw = (vw / 340).toFixed(2); // 화면에서 선 굵기 일정하게
+  el.innerHTML = `
+    <div class="route-map" style="aspect-ratio:${AR}/1">
+      <svg viewBox="${vx.toFixed(1)} ${vy.toFixed(1)} ${vw.toFixed(1)} ${vh.toFixed(1)}" preserveAspectRatio="none" aria-hidden="true">
+        <rect x="${(vx - 10).toFixed(0)}" y="${(vy - 10).toFixed(0)}" width="${(vw + 20).toFixed(0)}" height="${(vh + 20).toFixed(0)}" class="dm-sea"/>
+        ${Object.entries(MAP.land).map(([k, d]) => `<path d="${d}" class="dm-land ${(MAP.main || ["KR"]).includes(k) ? "main" : "far"}" style="stroke-width:${sw}"/>`).join("")}
+        <path d="M${ox.toFixed(1)} ${oy.toFixed(1)} Q${mx.toFixed(1)} ${my.toFixed(1)} ${dx.toFixed(1)} ${dy.toFixed(1)}" class="rm-route" style="stroke-width:${(sw * 2.4).toFixed(2)};stroke-dasharray:${(sw * 6).toFixed(1)} ${(sw * 5).toFixed(1)}"/>
+        <circle cx="${ox.toFixed(1)}" cy="${oy.toFixed(1)}" r="${(sw * 5).toFixed(1)}" class="dm-origin"/>
+      </svg>
+      <span class="dm-origin-label" style="left:${pct(ox, vx, vw)};top:${pct(oy, vy, vh)}">${esc(key)} 출발</span>
+      <span class="dm-pin pick rm-pin" style="left:${pct(dx, vx, vw)};top:${pct(dy, vy, vh)};--c1:${th.c1};--c2:${th.c2}">
+        <span class="dm-pin-name">${esc(t.destination.split("/")[0])}</span>
+        <span class="dm-pin-emoji"><i>${th.emoji}</i></span>
+      </span>
+    </div>
+    ${tv ? `<div class="rm-travel">${tv.icon} ${esc(key)}에서 ${esc(tv.text)}</div>` : ""}`;
+}
+
 function templateCardEl(template) {
   const card = document.createElement("div");
   card.className = "template-card";
@@ -1107,6 +1179,7 @@ function templateCardEl(template) {
     <div class="template-meta-geo">${esc(template.destination.replaceAll('/', ' · '))} · ${template.duration}일</div>
     ${state.seniorMode ? '' : `<p class="template-desc-single">${esc(template.description)}</p>`}
     <div class="template-meta-style">${styleText} · ${budgetLabel}</div>
+    ${(() => { const tv = templateTravel(template); return tv ? `<div class="tpl-travel">${esc(tv.origin)}에서 ${tv.icon} ${esc(tv.text)}</div>` : ""; })()}
     <div class="tpl-go">이 코스로 일정 만들기 →</div>
   `;
   // 출발지·날짜·인원·도착 공항·일수를 먼저 정하고 일정 열기
@@ -1256,7 +1329,7 @@ function renderHomeTabs(batches) {
   const title = document.getElementById("home-section-title");
   if (title) title.textContent = homePage === 2 ? "지난 추천" : (batches.current.label === "추천 코스" ? "추천 코스" : batches.current.label);
   const sub = document.getElementById("home-section-sub");
-  if (sub) sub.textContent = homePage === 2 ? "예전에 나왔던 코스도 그대로 열 수 있어요" : (batches.current.headline || "옆으로 넘기거나 핀을 눌러 보세요");
+  if (sub) sub.textContent = homePage === 2 ? "예전에 나왔던 코스도 그대로 열 수 있어요" : (batches.current.headline || "누르면 동선을 보고 일정을 맞춰요");
   if (!tabs) return;
   if (!batches.past.length) { tabs.innerHTML = ""; tabs.hidden = true; homePage = 1; return; }
   tabs.hidden = false;
@@ -1312,22 +1385,14 @@ function renderTemplates() {
   const matches = all.filter(t => matchesQuery(t, query));
   const matchKeys = query ? new Set(matches.map(t => t.id)) : null;
   if (matches.length && !matches.some(t => t.id === homeMapPick)) homeMapPick = matches[0].id;
-  renderHomeMap(all, matchKeys);
+  // 홈에는 지도를 두지 않음: 지도는 코스를 고르면 뜨는 설정 창에서 동선으로 보여줌
+  const mapWrapEl = document.getElementById("dest-map-wrap");
+  if (mapWrapEl) mapWrapEl.innerHTML = "";
 
   container.classList.remove("tpl-rail");
   if (matches.length) {
     container.classList.remove("single");
-    container.classList.add("tpl-rail");
-    matches.forEach(t => {
-      const el = templateCardEl(t);
-      el.dataset.tpl = t.id;
-      if (t.id === homeMapPick) el.classList.add("pick");
-      container.appendChild(el);
-    });
-    if (!container.dataset.railReady) { container.dataset.railReady = "1"; setupHomeRail(container); }
-    const pickEl = container.querySelector(".template-card.pick");
-    if (pickEl && pickEl !== container.firstElementChild) requestAnimationFrame(() => setHomePick(homeMapPick, { scrollCard: true, instant: true }));
-    else container.scrollLeft = 0;
+    matches.forEach(t => container.appendChild(templateCardEl(t)));
     return;
   }
   const inPast = query && batches.past.some(b => b.templates.some(t => matchesQuery(t, query)));
@@ -1430,6 +1495,7 @@ function openTemplateSetup(template) {
   $("tpl-airport-group").style.display = airports.length ? "" : "none";
   $("tpl-airport").innerHTML = airports.map(c => `<option value="${c}">${AIRPORT_NAMES[c] || c} (${c})</option>`).join("");
   updateTplDaysNote();
+  renderRouteMap($("tpl-route-map"), template, $("tpl-origin").value || homeOrigin().name);
   $("template-setup-overlay").classList.add("active");
 }
 
@@ -1448,6 +1514,9 @@ function setupTemplateSetup() {
   if (!overlay) return;
   const close = () => overlay.classList.remove("active");
   $("btn-close-tpl-setup").addEventListener("click", close);
+  $("tpl-origin").addEventListener("input", () => {
+    if (tplSetupTemplate) renderRouteMap($("tpl-route-map"), tplSetupTemplate, $("tpl-origin").value || homeOrigin().name);
+  });
   overlay.addEventListener("click", e => { if (e.target === overlay) close(); });
   $("tpl-days").addEventListener("change", updateTplDaysNote);
   $("btn-tpl-skip").addEventListener("click", () => { close(); loadItineraryTemplate(tplSetupTemplate); });
@@ -2942,7 +3011,7 @@ function formatMinutes(m) {
 
 
 
-const APP_VERSION = "v65";
+const APP_VERSION = "v66";
 
 // --- 목적지별 표지 색·그림 (사진 대신 저작권 걱정 없는 색과 이모지) ---
 const DEST_THEMES = [

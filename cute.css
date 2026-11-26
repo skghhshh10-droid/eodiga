@@ -694,3 +694,21 @@ html[data-theme="dark"] #dest-map-wrap { background: #0E2A33; }
 #dest-map-wrap .dm-pin-emoji { width: calc(40px * var(--pin-s, 1)); height: calc(40px * var(--pin-s, 1)); font-size: calc(21px * var(--pin-s, 1)); border-width: 2px; }
 #dest-map-wrap .dm-pin-name { font-size: max(10px, calc(12px * var(--pin-s, 1))); padding: 1px 6px; }
 #dest-map-wrap .dm-origin-label { font-size: 10px; }
+
+/* =========================================================
+   v66: 홈은 카드만, 지도는 코스 설정 창에서 동선으로
+   ========================================================= */
+.tpl-travel { margin: 6px 16px 0; font-size: 13px; font-weight: 700; color: var(--primary-solid); }
+#tpl-route-map:empty { display: none; }
+#tpl-route-map { margin: 0 0 12px; }
+.route-map { position: relative; width: 100%; border-radius: 16px; overflow: hidden; border: 1px solid var(--border-color); background: #D7EDF2; }
+html[data-theme="dark"] .route-map { background: #0E2A33; }
+.route-map svg { position: absolute; inset: 0; width: 100%; height: 100%; display: block; }
+.route-map .dm-land { vector-effect: non-scaling-stroke; stroke-width: 1 !important; }
+.rm-route { fill: none; stroke: var(--brand-deep, #0D4F5C); stroke-linecap: round; }
+html[data-theme="dark"] .rm-route { stroke: var(--primary-solid); }
+.route-map .dm-origin-label { font-size: 11px; }
+.route-map .rm-pin { position: absolute; transform: translate(-50%, -100%); pointer-events: none; z-index: 2; }
+.route-map .rm-pin .dm-pin-emoji { width: 36px; height: 36px; font-size: 19px; }
+.rm-travel { margin-top: 8px; font-size: 14px; font-weight: 800; color: var(--primary-solid); }
+.route-map .dm-land.far { stroke: none !important; }
